@@ -69,7 +69,7 @@ function Show-Help {
     
     Write-Host "PARAMETERS:" -ForegroundColor Yellow
     Write-Host "  -TestID <string>      Test case ID to execute (Required)"
-    Write-Host "                        Examples: GLD1015, GLD1014, GLD1001"
+    Write-Host "                        Examples: GLD-1015, GLD-1014, GLD-1001"
     Write-Host ""
     Write-Host "  -DisplayConfig        Display test configuration before running (Optional)"
     Write-Host ""
@@ -77,10 +77,10 @@ function Show-Help {
     
     Write-Host "EXAMPLES:" -ForegroundColor Yellow
     Write-Host "  .\RunTest.ps1 -TestID GLD-1015"
-    Write-Host "      Runs the GL-1015 test case`n"
+    Write-Host "      Runs the GLD-1015 test case`n"
 
-    Write-Host "  .\RunTest.ps1 -TestID GL-1014 -DisplayConfig"
-    Write-Host "      Runs GL-1014 and displays configuration first`n"
+    Write-Host "  .\RunTest.ps1 -TestID GLD-1014 -DisplayConfig"
+    Write-Host "      Runs GLD-1014 and displays configuration first`n"
 
     Write-Host "  .\RunTest.ps1 -Help"
     Write-Host "      Shows this help information`n"
