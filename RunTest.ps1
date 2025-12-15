@@ -4,20 +4,105 @@
 # Usage: .\RunTest.ps1 -TestID GLD1015
 # ----------------------------------------------------------------------------------
 
+<#
+.SYNOPSIS
+    Universal test wrapper for Kings River Benchmark Test Scripts
+
+.DESCRIPTION
+    This script loads and executes benchmark tests based on TestID parameter.
+    It automatically loads the corresponding config file and uses TestRunner.ps1
+    for execution.
+
+.PARAMETER TestID
+    The test case ID to execute (e.g., GLD1015, GLD1014, GLD1001)
+    Required parameter.
+
+.PARAMETER DisplayConfig
+    Optional switch to display test configuration before execution.
+
+.PARAMETER Help
+    Display this help information.
+
+.EXAMPLE
+    .\RunTest.ps1 -TestID GLD1015
+    Runs the GLD1015 test case
+
+.EXAMPLE
+    .\RunTest.ps1 -TestID GLD1014 -DisplayConfig
+    Runs the GLD1014 test case and displays configuration first
+
+.EXAMPLE
+    .\RunTest.ps1 -Help
+    Displays help information
+
+.NOTES
+    File Name      : RunTest.ps1
+    Prerequisite   : TestRunner.ps1 and corresponding .config.ps1 files
+    Created        : 2025-12-15
+#>
+
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter(Mandatory=$false)]
     [string]$TestID,
     
     [Parameter(Mandatory=$false)]
-    [switch]$DisplayConfig
+    [switch]$DisplayConfig,
+    
+    [Parameter(Mandatory=$false)]
+    [Alias("h")]
+    [switch]$Help
 )
 
-# Validate TestID parameter
-if ([string]::IsNullOrWhiteSpace($TestID)) {
-    Write-Host "Error: TestID parameter is required" -ForegroundColor Red
-    Write-Host "Usage: .\RunTest.ps1 -TestID <TestID>" -ForegroundColor Yellow
-    Write-Host "Example: .\RunTest.ps1 -TestID GLD1015" -ForegroundColor Yellow
-    exit 1
+# Function to display help
+function Show-Help {
+    Write-Host "`n================================================================" -ForegroundColor Cyan
+    Write-Host "  Kings River Benchmark Test Scripts - Universal Wrapper" -ForegroundColor Cyan
+    Write-Host "================================================================`n" -ForegroundColor Cyan
+    
+    Write-Host "DESCRIPTION:" -ForegroundColor Yellow
+    Write-Host "  Universal test wrapper that loads and executes benchmark tests"
+    Write-Host "  based on TestID parameter.`n"
+    
+    Write-Host "USAGE:" -ForegroundColor Yellow
+    Write-Host "  .\RunTest.ps1 -TestID <TestID> [-DisplayConfig]"
+    Write-Host "  .\RunTest.ps1 -Help`n"
+    
+    Write-Host "PARAMETERS:" -ForegroundColor Yellow
+    Write-Host "  -TestID <string>      Test case ID to execute (Required)"
+    Write-Host "                        Examples: GLD1015, GLD1014, GLD1001"
+    Write-Host ""
+    Write-Host "  -DisplayConfig        Display test configuration before running (Optional)"
+    Write-Host ""
+    Write-Host "  -Help, -h             Display this help information`n"
+    
+    Write-Host "EXAMPLES:" -ForegroundColor Yellow
+    Write-Host "  .\RunTest.ps1 -TestID GLD-1015"
+    Write-Host "      Runs the GL-1015 test case`n"
+
+    Write-Host "  .\RunTest.ps1 -TestID GL-1014 -DisplayConfig"
+    Write-Host "      Runs GL-1014 and displays configuration first`n"
+
+    Write-Host "  .\RunTest.ps1 -Help"
+    Write-Host "      Shows this help information`n"
+    
+    Write-Host "AVAILABLE TESTS:" -ForegroundColor Yellow
+    $configFiles = Get-ChildItem -Path $PSScriptRoot -Filter "*.config.ps1" -ErrorAction SilentlyContinue
+    if ($configFiles) {
+        foreach ($file in $configFiles) {
+            $testId = $file.Name -replace '\.config\.ps1$', ''
+            Write-Host "  - $testId" -ForegroundColor Cyan
+        }
+    } else {
+        Write-Host "  (No config files found)" -ForegroundColor Gray
+    }
+    
+    Write-Host "`n================================================================`n" -ForegroundColor Cyan
+}
+
+# Show help if requested or if no TestID provided
+if ($Help -or [string]::IsNullOrWhiteSpace($TestID)) {
+    Show-Help
+    exit 0
 }
 
 # Load the test runner (base class with all methods)
@@ -79,9 +164,9 @@ Write-Host "================================================================`n" 
 $result = $test.Run()
 
 # Display results summary
-Write-Host "`n╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║                     Test Summary                               ║" -ForegroundColor Cyan
-Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "`n================================================================" -ForegroundColor Cyan
+Write-Host "                     Test Summary                               " -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
 Write-Host "  Test ID     : $($result.TestID)" -ForegroundColor White
 Write-Host "  Test Name   : $($result.TestName)" -ForegroundColor White
 Write-Host "  Status      : " -NoNewline -ForegroundColor White
@@ -99,13 +184,13 @@ if ($result.ErrorMessage) {
     Write-Host "  Error       : $($result.ErrorMessage)" -ForegroundColor Red
 }
 
-Write-Host "════════════════════════════════════════════════════════════════`n" -ForegroundColor Cyan
+Write-Host "================================================================`n" -ForegroundColor Cyan
 
 # Exit with appropriate code
 if ($result.Status -eq "Success") {
-    Write-Host "✓ Test completed successfully!" -ForegroundColor Green
+    Write-Host " Test completed successfully!" -ForegroundColor Green
     exit 0
 } else {
-    Write-Host "✗ Test failed!" -ForegroundColor Red
+    Write-Host " Test failed!" -ForegroundColor Red
     exit 1
 }
