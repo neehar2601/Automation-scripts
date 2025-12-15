@@ -1,35 +1,14 @@
 # ----------------------------------------------------------------------------------
-# Kings River Benchmark Test Script
+# GLD-1001 Wrapper Script
 # Test Name: Busy Idle Consumer
-# Created by: Neehara Govinda N (Converted to PowerShell)
-# Modified by: Neehara Govinda N
-# Last Modified date: 15-12-2025
+# Loads TestRunner and config, executes the test
 # ----------------------------------------------------------------------------------
 
 # Load the test runner (base class with all methods)
 . "$PSScriptRoot\TestRunner.ps1"
 
-# Test Configuration (inline)
-$config = @{
-    # Required parameters
-    TestType = "Power"
-    TestID = "GLD1001"
-    TestName = "Busy Idle Consumer"
-    TestSubDomain = "CPU"
-    
-    # Override defaults
-    Temperature = 25          # Default is 83
-    RecordTime = 180          # Default is 0
-    WaitTime = 900            # Default is 10 (15 minutes)
-    
-    # Commands
-    TestPrestepCMD = "& 'C:\KSR_Package\KSR\Test_Run_KR\GLD\script\GLD1001_pre.exe'"
-    TestCMD = "& 'C:\KSR_Package\KSR\Test_Run_KR\GLD\script\GLD1001_CMD.bat'"
-    TestPoststepCMD = "& 'C:\KSR_Package\KSR\Test_Run_KR\postkill.bat'"
-    
-    # Result path (auto-generated if not specified)
-    ResultPath = "C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD1001"
-}
+# Load test configuration
+$config = . "$PSScriptRoot\GLD-1001.config.ps1"
 
 # Create test instance with config
 $test = [BenchmarkTest]::new($config)

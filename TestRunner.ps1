@@ -88,8 +88,7 @@ class BenchmarkTest {
             
             Write-Host "  Executing: $($this.TestCMD)" -ForegroundColor White
             try {
-                $job = Start-Process -FilePath "powershell.exe" -ArgumentList "-NoProfile", "-WindowStyle", "Normal", "-Command", $this.TestCMD -Wait -PassThru
-                $output = $job.ExitCode
+                $output = Invoke-Expression $this.TestCMD 2>&1
                 if ($LASTEXITCODE -ne 0 -and $null -ne $LASTEXITCODE) {
                     throw "Command exited with code $LASTEXITCODE"
                 }
