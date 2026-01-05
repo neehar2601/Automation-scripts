@@ -20,7 +20,7 @@ function Invoke-PowerMeterMonitoring {
     }
     
     # Signal monitoring start
-    & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "POWERMETER_Started"
+    # & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "POWERMETER_Started"
 
     try {
         # Determine monitoring duration
@@ -91,6 +91,6 @@ function Invoke-PowerMeterMonitoring {
     }
     finally {
         # Signal monitoring end
-        & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "POWERMETER_Ended"
+        # & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "POWERMETER_Ended"
     }
 }
