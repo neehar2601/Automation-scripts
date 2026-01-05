@@ -62,8 +62,8 @@ class BenchmarkTest {
     [string]$SoCWatchFlags = "-f sys -f memss-pstate -f cpu -f gfx -f npu -f power -f temp -f display -f io"
     
     # Tool paths
-    [string]$PowerSliderPath = "C:\KSR_Package\KSR\Test_Run_KR\PowerSlider.exe"
-    [string]$SoCWatchHelperPath = "C:\KSR_Package\KSR\Test_Run_KR\tools\socwatch\64\SoCWatchHelper.exe"
+    # [string]$PowerSliderPath = "C:\KSR_Package\KSR\Test_Run_KR\PowerSlider.exe"
+    # [string]$SoCWatchHelperPath = "C:\KSR_Package\KSR\Test_Run_KR\tools\socwatch\64\SoCWatchHelper.exe"
 
     # Constructor - accepts a config hashtable to override defaults
     BenchmarkTest([hashtable]$config) {
