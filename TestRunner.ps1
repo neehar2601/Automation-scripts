@@ -81,6 +81,21 @@ class BenchmarkTest {
                 New-Item -ItemType Directory -Path $this.ResultPath | Out-Null
             }
         }
+        
+        # Inherit WaitTime for monitoring tools if not explicitly set
+        # This ensures consistent wait time across all modes
+        if ($this.SoCWatchWaitTime -eq 0 -and $this.WaitTime -gt 0) {
+            $this.SoCWatchWaitTime = $this.WaitTime
+        }
+        if ($this.PowerMeterWaitTime -eq 0 -and $this.WaitTime -gt 0) {
+            $this.PowerMeterWaitTime = $this.WaitTime
+        }
+        if ($this.TypePerfWaitTime -eq 0 -and $this.WaitTime -gt 0) {
+            $this.TypePerfWaitTime = $this.WaitTime
+        }
+        if ($this.EMONWaitTime -eq 0 -and $this.WaitTime -gt 0) {
+            $this.EMONWaitTime = $this.WaitTime
+        }
     }
 
     # Method: PreStep
@@ -154,8 +169,9 @@ class BenchmarkTest {
                 Write-Host "`n  --- Iteration $i of $($this.Repeats) ---" -ForegroundColor Cyan
             }
             
+            # Wait before first iteration only
             if ($this.WaitTime -gt 0 -and $i -eq 1) {
-                Write-Host "  Waiting $($this.WaitTime) seconds..." -ForegroundColor Gray
+                Write-Host "  [INFO] Waiting $($this.WaitTime) seconds before starting test..." -ForegroundColor Yellow
                 Start-Sleep -Seconds $this.WaitTime
             }
             
