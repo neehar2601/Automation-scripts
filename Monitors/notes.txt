@@ -1,0 +1,1 @@
+.\presentmon_parser.ps1 -InputPath .\PresentMon_Output_20251101_191546.csv -Mode Video -AutoThreshold -ExcludeDwm -MinFramesForVerdict 300

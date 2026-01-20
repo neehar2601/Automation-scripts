@@ -30,12 +30,12 @@
         $modelPath = "C:\KSR_Package\tools\installers\openvino.genai\tools\llm_bench\Llama-3-8B_npu"
         $promptFile = "C:\KSR_Package\tools\installers\openvino.genai\tools\llm_bench\prompts\1k_pmpt.jsonl"
         
-        Write-Host "  [Test] Running OpenVINO GenAI benchmark on NPU..." -ForegroundColor Yellow
-        Write-Host "  Model: Llama-3-8B" -ForegroundColor Gray
-        Write-Host "  Device: NPU" -ForegroundColor Gray
-        Write-Host "  Input Context: 128 tokens" -ForegroundColor Gray
-        Write-Host "  Iterations: 7" -ForegroundColor Gray
-        Write-Host "  Output: $outputFile" -ForegroundColor Gray
+        # Write-Host "  [Test] Running OpenVINO GenAI benchmark on NPU..." -ForegroundColor Yellow
+        # Write-Host "  Model: Llama-3-8B" -ForegroundColor Gray
+        # Write-Host "  Device: NPU" -ForegroundColor Gray
+        # Write-Host "  Input Context: 128 tokens" -ForegroundColor Gray
+        # Write-Host "  Iterations: 7" -ForegroundColor Gray
+        # Write-Host "  Output: $outputFile" -ForegroundColor Gray
         
         # Run benchmark
         Start-Process -FilePath "python" `
@@ -52,16 +52,6 @@
             throw "Benchmark output file not created: $outputFile"
         }
     }
-    
-    # PostStep: Rename score files
-    TestPoststepCMD = {
-        Write-Host "  [PostStep] Renaming score files..." -ForegroundColor Gray
-        Start-Process -FilePath "C:\KSR_Package\KSR\Test_Run_KR\Score_Rename.bat" `
-            -ArgumentList "C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD3002" `
-            -NoNewWindow -Wait
-        Write-Host "  [PostStep] Score files renamed" -ForegroundColor Green
-    }
-    
     # Result path (auto-generated based on TestID)
     ResultPath = "C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD3002"
 }
