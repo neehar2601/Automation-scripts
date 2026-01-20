@@ -219,50 +219,53 @@ $socwatchArgs   = "-f sys -f cpu -f gfx -o `"$socwatchPrefix`""
 Write-LogEntry -Module TELEMETRY -Type INFO -Message "SocWatch arguments: $socwatchArgs"
 Write-LogEntry -Module TELEMETRY -Type INFO -Message "SocWatch working directory: $OutputDir"
 
-# Background job name & PID file
-$jobName = "socwatch_$SessionName"
+# PID file for tracking
 $pidFile = Join-Path $OutputDir "socwatch.pid"
 
-# Remove any prior job with same name (best effort)
-$oldJob = Get-Job -Name $jobName -ErrorAction SilentlyContinue
-if ($oldJob) { Remove-Job -Job $oldJob -Force -ErrorAction SilentlyContinue }
-
-# Launch socwatch inside a background job so the orchestrator returns immediately.
-# If ShowConsole was requested, we start with a visible window (Normal) instead of Hidden.
+# Launch socwatch as a DETACHED background process
+# This ensures it survives even after the parent script returns
 $useVisibleWindow = $ShowConsole.IsPresent
-$null = Start-Job -Name $jobName -ScriptBlock {
-    param($exe,$exeArgs,$pidPath,$visible,$workDir)
-    try {
-        if ($visible) {
-            $proc = Start-Process -FilePath $exe -ArgumentList $exeArgs -PassThru -WindowStyle Normal -WorkingDirectory $workDir
-        } else {
-            $proc = Start-Process -FilePath $exe -ArgumentList $exeArgs -PassThru -WindowStyle Hidden -WorkingDirectory $workDir
-        }
-    } catch {
-        Write-Host "[SORCWATCH][ERROR] Failed to start process: $($_.Exception.Message)" -ForegroundColor Red
-        return
+
+Write-LogEntry -Module TELEMETRY -Type INFO -Message "Launching SoCWatch as detached background process..."
+
+try {
+    if ($useVisibleWindow) {
+        # Normal window (visible) for debugging/monitoring
+        $proc = Start-Process -FilePath $socwatchExe `
+            -ArgumentList $socwatchArgs `
+            -WorkingDirectory $OutputDir `
+            -WindowStyle Normal `
+            -PassThru
+    } else {
+        # Hidden window for non-intrusive monitoring
+        $proc = Start-Process -FilePath $socwatchExe `
+            -ArgumentList $socwatchArgs `
+            -WorkingDirectory $OutputDir `
+            -WindowStyle Hidden `
+            -PassThru
     }
-    try { $proc.Id | Set-Content -Path $pidPath -Encoding ascii -Force } catch {}
-    $proc.WaitForExit()  # keep job alive for duration of collection
-} -ArgumentList $socwatchExe,$socwatchArgs,$pidFile,$useVisibleWindow,$OutputDir
-
-# Grace period for process spawn
-Start-Sleep -Milliseconds 800
-
-# Read PID (best effort)
-$socwatchPid = $null
-if (Test-Path $pidFile) {
-    $pidRaw = (Get-Content $pidFile -Raw).Trim()
-    if ($pidRaw) { $socwatchPid = $pidRaw }
+    
+    # Save PID for stop script
+    $proc.Id | Out-File -FilePath $pidFile -Encoding ascii -Force
+    
+    # Give SoCWatch time to initialize
+    Start-Sleep -Milliseconds 1000
+    
+    # Verify process is still running
+    if (Get-Process -Id $proc.Id -ErrorAction SilentlyContinue) {
+        $winMsg = if ($useVisibleWindow) { 'Window: Visible' } else { 'Window: Hidden' }
+        Write-LogEntry -Module TELEMETRY -Type INFO -Message "SoCWatch process started successfully (PID: $($proc.Id)). $winMsg"
+        Write-LogEntry -Module TELEMETRY -Type INFO -Message "Process is running independently and will survive parent script termination."
+    } else {
+        Write-LogEntry -Module TELEMETRY -Type ERROR -Message "SoCWatch process started but immediately terminated. Check socwatch.exe compatibility."
+        exit 1
+    }
+} catch {
+    Write-LogEntry -Module TELEMETRY -Type ERROR -Message "Failed to start SoCWatch: $($_.Exception.Message)"
+    exit 1
 }
 
-if ($socwatchPid) {
-    $winMsg = if ($useVisibleWindow) { 'Window requested: visible.' } else { 'Window style: hidden.' }
-    Write-LogEntry -Module TELEMETRY -Type INFO -Message "SoCWatch background job '$jobName' started (PID: $socwatchPid). $winMsg"
-} else {
-    $winMsg = if ($useVisibleWindow) { 'Window requested: visible.' } else { 'Window style: hidden.' }
-    Write-LogEntry -Module TELEMETRY -Type WARNING -Message "SoCWatch background job '$jobName' started (PID pending; socwatch may detach quickly). $winMsg"
-}
+$socwatchPid = $proc.Id
 
 Write-LogEntry -Module TELEMETRY -Type RESULT -Message "SoCWatch monitoring session armed. Returning to orchestrator."
 
