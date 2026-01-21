@@ -18,12 +18,8 @@ function Invoke-TypePerfMonitoring {
 
     try {
         $typeperfOutput = Join-Path $TestInstance.ResultPath "$($TestInstance.TestID)_typeperf_$suffix.csv"
-        
-        # Step 1: Start TypePerf monitoring in hidden window
-        Write-Host "  [TypePerf] Starting TypePerf monitoring in hidden window..." -ForegroundColor Cyan
-        Start-Process -FilePath "typeperf" -ArgumentList "-cf $counterFile -o `"$typeperfOutput`"" -WindowStyle Hidden
-        
-        # Step 2: Wait if WaitTime specified
+
+        # Step 1: Wait if WaitTime specified
         if ($TestInstance.TypePerfWaitTime -gt 0) {
             Write-Host "  [TypePerf] Waiting $($TestInstance.TypePerfWaitTime) seconds for stabilization..." -ForegroundColor Gray
             Start-Sleep -Seconds $TestInstance.TypePerfWaitTime
@@ -32,6 +28,12 @@ function Invoke-TypePerfMonitoring {
             Write-Host "  [TypePerf] Waiting 3 seconds for monitoring to initialize..." -ForegroundColor Gray
             Start-Sleep -Seconds 3
         }
+        
+        # Step 2: Start TypePerf monitoring in hidden window
+        Write-Host "  [TypePerf] Starting TypePerf monitoring in hidden window..." -ForegroundColor Cyan
+        Start-Process -FilePath "typeperf" -ArgumentList "-cf $counterFile -o `"$typeperfOutput`"" -WindowStyle Hidden
+        
+        
         
         # Step 3: Run test in MAIN WINDOW
         Write-Host "  [TypePerf] Running test in main window..." -ForegroundColor Yellow

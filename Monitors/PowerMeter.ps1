@@ -25,15 +25,8 @@ function Invoke-PowerMeterMonitoring {
     try {
         # Determine monitoring duration
         $duration = if ($TestInstance.PowerMeterRunTime -gt 0) { $TestInstance.PowerMeterRunTime } else { 300 }
-        
-        # Step 1: Start PowerMeter monitoring using helper
-        Write-Host "  [PowerMeter] Starting SystemMeter monitoring..." -ForegroundColor Cyan
-        & $helperScript -Action Start `
-                       -LogDirectory $TestInstance.ResultPath `
-                       -FileName $TestInstance.TestID `
-                       -Duration $duration
-        
-        # Step 2: Wait if WaitTime specified
+
+         # Step 1: Wait if WaitTime specified
         if ($TestInstance.PowerMeterWaitTime -gt 0) {
             Write-Host "  [PowerMeter] Waiting $($TestInstance.PowerMeterWaitTime) seconds for stabilization..." -ForegroundColor Gray
             Start-Sleep -Seconds $TestInstance.PowerMeterWaitTime
@@ -42,6 +35,13 @@ function Invoke-PowerMeterMonitoring {
             Write-Host "  [PowerMeter] Waiting 3 seconds for monitoring to initialize..." -ForegroundColor Gray
             Start-Sleep -Seconds 3
         }
+        
+        # Step 2: Start PowerMeter monitoring using helper
+        Write-Host "  [PowerMeter] Starting SystemMeter monitoring..." -ForegroundColor Cyan
+        & $helperScript -Action Start `
+                       -LogDirectory $TestInstance.ResultPath `
+                       -FileName $TestInstance.TestID `
+                       -Duration $duration
         
         # Step 3: Run test in MAIN WINDOW
         Write-Host "  [PowerMeter] Running test in main window..." -ForegroundColor Yellow

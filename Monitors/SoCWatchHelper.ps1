@@ -136,7 +136,7 @@ if ($Action -eq "Start") {
                               -ArgumentList $socwatchArgs `
                               -WorkingDirectory $OutputDir `
                               -PassThru `
-                              -WindowStyle Normal
+                              -WindowStyle Hidden
         
         # Save PID to file
         if ($proc -and $proc.Id) {

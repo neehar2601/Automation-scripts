@@ -32,13 +32,17 @@ function Invoke-EMONMonitoring {
     # & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "EMON_Started"
 
     try {
-        # Step 1: Start EMON monitoring in minimized window
+
+        # Step 1: Wait for monitoring to initialize
+        Write-Host "  [EMON] Waiting 3 seconds for monitoring to initialize..." -ForegroundColor Gray
+        Start-Sleep -Seconds 3
+
+
+        # Step 2: Start EMON monitoring in minimized window
         Write-Host "  [EMON] Starting monitoring in minimized window..." -ForegroundColor Cyan
         & $helperScript -Action Start -LogDirectory $TestInstance.ResultPath -FileName "$($TestInstance.TestID)_emon"
         
-        # Step 2: Wait for monitoring to initialize
-        Write-Host "  [EMON] Waiting 3 seconds for monitoring to initialize..." -ForegroundColor Gray
-        Start-Sleep -Seconds 3
+        
         
         # Step 3: Run test in MAIN WINDOW (not background job)
         Write-Host "  [EMON] Running test in main window..." -ForegroundColor Yellow
