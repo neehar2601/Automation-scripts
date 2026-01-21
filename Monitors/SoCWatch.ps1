@@ -27,12 +27,8 @@ function Invoke-SoCWatchMonitoring {
 
     # & $TestInstance.PowerSliderPath $TestInstance.ResultPath $TestInstance.TestID "SOCWATCH_Started"
 
-    try {
-        # Step 1: Start SoCWatch monitoring in separate window
-        Write-Host "  [SoCWatch] Starting monitoring in separate window..." -ForegroundColor Cyan
-        & $helperScript -Action Start -LogDirectory $TestInstance.ResultPath -FileName $TestInstance.TestID -Flags $TestInstance.SoCWatchFlags @executionMode
-        
-        # Step 2: Wait if WaitTime specified
+    try { 
+        # Step 1: Wait if WaitTime specified
         if ($TestInstance.SoCWatchWaitTime -gt 0) {
             Write-Host "  [SoCWatch] Waiting $($TestInstance.SoCWatchWaitTime) seconds for stabilization..." -ForegroundColor Gray
             Start-Sleep -Seconds $TestInstance.SoCWatchWaitTime
@@ -42,7 +38,11 @@ function Invoke-SoCWatchMonitoring {
             Write-Host "  [SoCWatch] Waiting 3 seconds for monitoring to initialize..." -ForegroundColor Gray
             Start-Sleep -Seconds 3
         }
-        
+
+        # Step 2: Start SoCWatch monitoring in separate window
+        Write-Host "  [SoCWatch] Starting monitoring in separate window..." -ForegroundColor Cyan
+        & $helperScript -Action Start -LogDirectory $TestInstance.ResultPath -FileName $TestInstance.TestID -Flags $TestInstance.SoCWatchFlags @executionMode
+
         # Step 3: Run test in MAIN WINDOW (not background job)
         Write-Host "  [SoCWatch] Running test in main window..." -ForegroundColor Yellow
         Write-Host "  Executing: " -NoNewline -ForegroundColor White
