@@ -127,6 +127,12 @@ class BenchmarkTest {
             throw "TestCMD is required but not defined in config"
         }
 
+        # Wait after PreStep and before starting monitors/test
+        if ($this.WaitTime -gt 0) {
+            Write-Host "  [INFO] Waiting $($this.WaitTime) seconds after PreStep..." -ForegroundColor Yellow
+            Start-Sleep -Seconds $this.WaitTime
+        }
+
         # Determine which monitoring to use
         # Priority order: SoCWatch > PowerMeter > TypePerf > EMON > PresentMon > WLC > Normal
         $monitoringTool = $null
@@ -216,13 +222,7 @@ class BenchmarkTest {
                 }
             }
             
-            # Step 2: Wait for stabilization
-            if ($this.WaitTime -gt 0) {
-                Write-Host "  [Monitor] Waiting $($this.WaitTime) seconds for stabilization..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $this.WaitTime
-            }
-            
-            # Step 3: Run test(s)
+            # Step 2: Run test(s) immediately after starting monitors
             for ($i = 1; $i -le $this.Repeats; $i++) {
                 if ($this.Repeats -gt 1) {
                     Write-Host "`n  --- Iteration $i of $($this.Repeats) ---" -ForegroundColor Cyan
@@ -241,11 +241,11 @@ class BenchmarkTest {
                 Write-Host "  [Test] Workload completed" -ForegroundColor Green
             }
             
-            # Step 4: Brief wait before stopping
+            # Step 3: Brief wait before stopping
             Write-Host "  [Monitor] Waiting 2 seconds before stopping..." -ForegroundColor Gray
             Start-Sleep -Seconds 2
             
-            # Step 5: Stop monitoring
+            # Step 4: Stop monitoring
             Write-Host "  [Monitor] Stopping $tool..." -ForegroundColor Yellow
             
             $monitorScript = Join-Path $PSScriptRoot "Monitors"
@@ -316,12 +316,6 @@ class BenchmarkTest {
         for ($i = 1; $i -le $this.Repeats; $i++) {
             if ($this.Repeats -gt 1) {
                 Write-Host "`n  --- Iteration $i of $($this.Repeats) ---" -ForegroundColor Cyan
-            }
-            
-            # Wait before first iteration only
-            if ($this.WaitTime -gt 0 -and $i -eq 1) {
-                Write-Host "  [INFO] Waiting $($this.WaitTime) seconds before starting test..." -ForegroundColor Yellow
-                Start-Sleep -Seconds $this.WaitTime
             }
             
             Write-Host "  Executing: " -NoNewline -ForegroundColor White
