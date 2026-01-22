@@ -111,22 +111,28 @@ Power Consumption = Base System + Test Workload + Background Noise
 │  ┌─────────────────────────────────────────────────────────┐   │
 │  │         DUT Listener Agent (Self-Terminating)           │   │
 │  │  ┌────────────┐  ┌────────────┐  ┌─────────────────┐    │   │
-│  │  │  Network   │  │  Command   │  │  Wrapper Script │    │   │
-│  │  │  Listener  │  │  Parser    │  │   Generator     │    │   │
+│  │  │  Network   │  │  Command   │  │  Task           │    │   │
+│  │  │  Listener  │  │  Parser    │  │  Scheduler      │    │   │
 │  │  └─────┬──────┘  └───────┬────┘  └──────────┬──────┘    │   │
 │  │        │                 │                  │           │   │
 │  │        └─────────────────┴──────────────────┘           │   │
 │  │                          │                              │   │
-│  │                   [SELF-TERMINATES]                     │   │
+│  │         Schedules RunTest.ps1 → [SELF-TERMINATES]       │   │
 │  │                          X                              │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Wrapper Script Execution                   │   │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌─────────┐  │   │
-│  │  │ PreStep  │→ │Monitoring│→ │   Test   │→ │PostStep │  │   │
-│  │  │          │  │(SoCWatch)│  │ Workload │  |(Restart)│  │   │
-│  │  └──────────┘  └──────────┘  └──────────┘  └─────────┘  │   │
+│  │              RunTest.ps1 Execution                      │   │
+│  │  ┌──────────┐  ┌──────┐  ┌──────────┐  ┌──────┐  ┌────┐ │   │
+│  │  │ PreStep  │→ │ Wait │→ │Monitors  │→ │ Test │→ │Stop│ │   │
+│  │  │          │  │      │  │(SoCWatch)│  │      │  │Mon.│ │   │
+│  │  └──────────┘  └──────┘  └──────────┘  └──────┘  └──┬─┘ │   │
+│  │                                                    │    │   │
+│  │                                          ┌─────────▼───┐│   │
+│  │                                          │ PostStep    ││   │
+│  │                                          │ (Restart    ││   │
+│  │                                          │  Listener)  ││   │
+│  │                                          └─────────────┘│   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                │
 │  ┌──────────────────────────────────────────────────────────┐  │
@@ -139,10 +145,11 @@ Power Consumption = Base System + Test Workload + Background Noise
 ### Key Principles
 
 1. **Remote Control**: External server manages all test execution
-2. **Self-Termination**: Listener stops itself during tests
-3. **Minimal Activity**: Only essential processes run during measurement
-4. **Automatic Recovery**: Listener restarts after test completion
-5. **Full Automation**: No manual intervention required
+2. **Self-Termination**: Listener stops itself before test starts
+3. **Use Existing Framework**: RunTest.ps1 handles all test execution (no wrapper scripts)
+4. **Minimal Activity**: Only essential processes run during measurement
+5. **Automatic Recovery**: Listener restarts after test completion (via PostStep)
+6. **Full Automation**: No manual intervention required
 
 ---
 
@@ -192,10 +199,10 @@ ControlServer/
 **Responsibilities:**
 - Listen for incoming commands on TCP/REST endpoint
 - Parse and validate test commands
-- Generate wrapper scripts with test parameters
-- Schedule test execution
+- Schedule RunTest.ps1 execution via Task Scheduler
+- Create marker file (.listener_stopped) to signal PostStep
 - **Self-terminate gracefully before test starts**
-- Auto-restart after test completion (via PostStep)
+- Auto-restart after test completion (via PostStep checking marker file)
 
 **Technology Stack:**
 ```
@@ -211,74 +218,57 @@ C:\GLD\Agent\
 ├── DUTListener.ps1           # Main listener script
 ├── Start-DUTListener.ps1     # Launcher
 ├── Stop-DUTListener.ps1      # Manual stop
-├── WrapperGenerator.ps1      # Creates test wrappers
-├── .listener_state.json      # State persistence
+├── .listener_stopped         # Marker file for PostStep
+├── .listener_state.json      # State persistence (optional)
 └── Logs\
     └── listener_YYYYMMDD.log # Daily logs
 ```
 
 ---
 
-### Component 3: Test Wrapper Script
+### Component 3: RunTest.ps1 (Existing Framework)
 
-**Purpose**: Standalone script that executes tests after listener terminates
+**Purpose**: Execute tests using existing proven test framework
 
-**Auto-Generated per Test Execution**
+**No Code Generation Required - Uses Existing Scripts**
 
-**Responsibilities:**
-1. Wait for listener to fully terminate (5 seconds)
-2. Stop background services (minimize power noise)
-3. Execute PreStep (if required)
-4. Start monitoring tools (SoCWatch, PowerMeter, etc.)
-5. Wait for stabilization (WaitTime)
-6. Execute test workload (N iterations)
-7. Stop monitoring tools
-8. Execute PostStep (restore services, restart listener)
-9. Self-destruct (delete itself)
+**Execution Flow (handled by RunTest.ps1 & TestRunner.ps1):**
+1. **PreStep** - Test initialization (if configured)
+2. **Wait** - Stabilization period (WaitTime parameter)
+3. **Start Monitors** - Launch SoCWatch/EMON/PowerMeter
+4. **Execute Test** - Run test workload (N iterations)
+5. **Stop Monitors** - Stop monitoring tools and collect data
+6. **PostStep** - Cleanup and **restart listener** (checks .listener_stopped marker)
 
-**Template Structure:**
-```powershell
-# Auto-generated: execute_test_GLD1015_20250122_103000.ps1
-# Test ID: GLD-1015
-# Iterations: 3
-
-# Step 1: Verify listener stopped
-# Step 2: Stop background services
-# Step 3: Execute test via RunTest.ps1
-# Step 4: Restart services
-# Step 5: Restart listener agent
-# Step 6: Self-destruct
-```
+**Key Advantage:**
+- ✅ **No wrapper script generation** - uses existing, tested framework
+- ✅ **Single source of truth** - all test logic in TestRunner.ps1
+- ✅ **Minimal changes** - only 10-15 lines added to PostStep for listener restart
 
 ---
 
-### Component 4: Service Management Scripts
+### Component 4: Background Service Management (Future Enhancement)
 
 **Purpose**: Minimize system activity during power measurement
 
-**Stop-BackgroundServices.ps1:**
-```powershell
-# Services to stop (configurable)
-$servicesToStop = @(
-    "wuauserv",        # Windows Update
-    "WinDefend",       # Windows Defender
-    "BITS",            # Background Transfer
-    "Spooler",         # Print Spooler
-    "DiagTrack",       # Diagnostics Tracking
-    "SysMain"          # Superfetch/Prefetch
-)
+**Status**: To be implemented later as separate scripts
 
-foreach ($service in $servicesToStop) {
-    Stop-Service -Name $service -Force -ErrorAction SilentlyContinue
-}
+**Planned Scripts:**
+- `Stop-BackgroundServices.ps1` - Stop Windows Update, Defender, etc.
+- `Start-BackgroundServices.ps1` - Restore services after test
+
+**Integration Point:**
+- Called by listener before scheduling test
+- Or called by PreStep in test configuration
+
+**Services to Manage:**
 ```
-
-**Start-BackgroundServices.ps1:**
-```powershell
-# Restart services after test
-foreach ($service in $servicesToStart) {
-    Start-Service -Name $service -ErrorAction SilentlyContinue
-}
+wuauserv    - Windows Update
+WinDefend   - Windows Defender
+BITS        - Background Intelligent Transfer
+Spooler     - Print Spooler
+DiagTrack   - Diagnostics Tracking
+SysMain     - Superfetch/Prefetch
 ```
 
 ---
@@ -308,8 +298,8 @@ State 1: LISTENING
     ↓
 State 2: SCHEDULING
     ↓
-    │ Creates wrapper script
-    │ Schedules execution (Task Scheduler)
+    │ Schedules RunTest.ps1 execution (Task Scheduler)
+    │ Creates marker file (.listener_stopped)
     │ Sends acknowledgment to server
     ↓
 State 3: TERMINATING
@@ -321,7 +311,7 @@ State 3: TERMINATING
 State 4: TERMINATED (5-300 seconds)
     ↓
     │ [Listener not running - clean environment]
-    │ Wrapper script executes test
+    │ RunTest.ps1 executes test (PreStep → Wait → Monitor → Test → PostStep)
     ↓
 State 5: RESTARTING
     ↓
@@ -337,25 +327,25 @@ State 6: LISTENING (back to State 1)
 
 ### State Persistence
 
-**File**: `.listener_state.json`
+**File**: `.listener_stopped` (Simple marker file)
 
+This file's presence signals to PostStep that the listener was stopped for a test and needs to be restarted.
+
+**Alternative - State JSON** (optional, for advanced tracking):
 ```json
 {
   "status": "stopped_for_test",
   "reason": "Executing test GLD-1015",
   "stopped_at": "2025-01-22T10:30:00Z",
-  "expected_restart": "2025-01-22T10:45:00Z",
   "test_id": "GLD-1015",
-  "iterations": 3,
-  "wrapper_script": "C:\\Temp\\execute_test_20250122_103000.ps1",
   "control_server": "192.168.1.10:8080"
 }
 ```
 
 **Use Cases:**
-- **Normal stop**: `status = "stopped_for_test"` → Don't auto-restart
-- **Crash/error**: `status = "running"` + no wrapper script → Auto-restart on boot
-- **Maintenance**: `status = "maintenance"` → Manual restart required
+- **Normal stop**: `.listener_stopped` file exists → PostStep restarts listener
+- **Crash/error**: File doesn't exist + listener not running → Manual investigation
+- **Maintenance**: Manual stop → No marker file → No auto-restart
 
 ### Restart Mechanism
 
@@ -377,22 +367,29 @@ Add to each test config file:
 }
 ```
 
-**Option 2: Universal PostStep (Framework-Level)**
+**Option 2: Universal PostStep (Framework-Level) - RECOMMENDED**
 
-Add to TestRunner.ps1:
+Add to TestRunner.ps1 PostStep() method:
 ```powershell
 [void] PostStep() {
-    # ... existing PostStep logic ...
+    # ... existing PostStep logic (Score_Rename.bat, TestPoststepCMD) ...
     
-    # Universal: Check if listener was stopped for test
+    # Check if listener was stopped for remote test execution
     if (Test-Path "C:\GLD\Agent\.listener_stopped") {
         Write-Host "[PostStep] Restarting DUT Listener..." -ForegroundColor Cyan
         Start-Process -FilePath "C:\GLD\Agent\Start-DUTListener.ps1" -WindowStyle Hidden
+        Start-Sleep -Seconds 3
         Remove-Item "C:\GLD\Agent\.listener_stopped" -Force
         Write-Host "[PostStep] Listener restarted" -ForegroundColor Green
     }
 }
 ```
+
+**Why This Approach:**
+- ✅ **Minimal code** - only 10-15 lines
+- ✅ **No code duplication** - leverages existing framework
+- ✅ **Universal** - works for all tests automatically
+- ✅ **Safe** - only restarts if marker file present
 
 ---
 
@@ -468,7 +465,7 @@ Content-Type: application/json
   "status": "scheduled",
   "test_id": "GLD-1015",
   "request_id": "req-20250122-001",
-  "wrapper_script": "C:\\Temp\\execute_test_20250122_103000.ps1",
+  "test_script": "RunTest.ps1",
   "scheduled_start": "2025-01-22T10:30:07Z",
   "estimated_completion": "2025-01-22T10:45:00Z",
   "listener_will_terminate": true,
@@ -547,10 +544,9 @@ T+0.5s  [DUT] Listener receives command
          ↓
 T+1s    [DUT] Parse command, validate parameters
          ↓
-T+2s    [DUT] Generate wrapper script:
-         - C:\Temp\execute_test_GLD1015_20250122_103000.ps1
+T+2s    [DUT] Create marker file: .listener_stopped
          ↓
-T+3s    [DUT] Schedule wrapper execution (Task Scheduler)
+T+3s    [DUT] Schedule RunTest.ps1 execution (Task Scheduler)
          - Start time: T+7s (5 second delay)
          ↓
 T+4s    [DUT] Send acknowledgment to server
@@ -570,10 +566,10 @@ T+10s   [Wrapper] Stop background services
          ↓
 T+12s   [Wrapper] Execute PreStep (if configured)
          ↓
-T+15s   [Wrapper] Start monitoring (SoCWatch)
-         ↓
-T+20s   [Wrapper] Wait for stabilization
+T+15s   [Wrapper] Wait for stabilization
          - Wait time: 60 seconds
+         ↓
+T+75s   [Wrapper] Start monitoring (SoCWatch)
          ↓
 T+80s   [Wrapper] Execute test workload
          ↓  ← CRITICAL MEASUREMENT PERIOD
@@ -608,7 +604,9 @@ T+320s  [System] Back to normal state
 │           │                                                      │
 │  1s ───── DUT receives & parses                                  │
 │           │                                                      │
-│  3s ───── Wrapper script created                                 │
+│  2s ───── Marker file created (.listener_stopped)                │
+│           │                                                      │
+│  3s ───── RunTest.ps1 scheduled                                  │
 │           │                                                      │
 │  4s ───── Acknowledgment sent                                    │
 │           │                                                      │
@@ -616,13 +614,13 @@ T+320s  [System] Back to normal state
 │           │                                                      │
 │           ├─── [LISTENER OFFLINE PERIOD] ───────────────┐        │
 │           │                                             │        │
-│  7s ───── Wrapper starts                                │        │
+│  7s ───── RunTest.ps1 starts                            │        │
 │           │                                             │        │
-│ 10s ───── Stop services                                 │        │
+│ 10s ───── PreStep executed                              │        │
 │           │                                             │        │
-│ 15s ───── Start monitoring                              │        │
+│ 15s ───── Wait period (60s)                             │        │
 │           │                                             │        │
-│ 20s ───── Wait period (60s)                             │        │
+│ 75s ───── Start monitoring                              │        │
 │           │                                             │        │
 │ 80s ───── ╔════════════════════════════════╗            │        │
 │           ║  TEST WORKLOAD EXECUTION       ║            │        │
@@ -633,15 +631,13 @@ T+320s  [System] Back to normal state
 │           │                                             │        │
 │300s ───── Stop monitoring                               │        │
 │           │                                             │        │
-│305s ───── Restart services                              │        │
+│305s ───── PostStep: Check marker & restart listener     │        │
 │           │                                             │        │
-│307s ───── LISTENER RESTARTS                             │        │
+│310s ───── LISTENER RESTARTS                             │        │
 │           │                                             │        │
 │           └─── [LISTENER BACK ONLINE] ──────────────────┘        │
 │           │                                                      │
-│310s ───── Report "test_complete"                                 │
-│           │                                                      │
-│315s ───── Wrapper self-destructs                                 │
+│312s ───── Report "test_complete"                                 │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -724,26 +720,28 @@ while ($listener.IsListening) {
         # Handle command
         if ($command.command -eq "execute_test") {
             
-            # Generate wrapper script
-            $wrapperPath = "C:\Temp\execute_test_$($command.test_id)_$(Get-Date -Format 'yyyyMMddHHmmss').ps1"
-            New-TestWrapperScript -Command $command -OutputPath $wrapperPath
+            # Create marker file for PostStep
+            New-Item -Path "C:\GLD\Agent\.listener_stopped" -ItemType File -Force
             
-            # Schedule execution (5 seconds from now)
+            # Schedule RunTest.ps1 execution (5 seconds from now)
             $taskName = "DUT_Test_$($command.test_id)"
             $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(5)
-            $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$wrapperPath`""
+            $testScript = "C:\GLD\New_Flow_5\RunTest.ps1"
+            $testArgs = "-TestID '$($command.test_id)' -WaitTime $($command.monitoring.wait_time)"
+            if ($command.monitoring.socwatch) { $testArgs += " -SoCWatch" }
+            
+            $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoProfile -ExecutionPolicy Bypass -File `"$testScript`" $testArgs"
             Register-ScheduledTask -TaskName $taskName -Trigger $trigger -Action $action -Force
             
             Write-Log "Test scheduled to start in 5 seconds"
-            Write-Log "Wrapper script: $wrapperPath"
+            Write-Log "Test: RunTest.ps1 $testArgs"
             
-            # Save state
+            # Save state (optional)
             $state = @{
                 status = "stopped_for_test"
                 reason = "Executing test $($command.test_id)"
                 stopped_at = (Get-Date).ToString("o")
                 test_id = $command.test_id
-                wrapper_script = $wrapperPath
             }
             $state | ConvertTo-Json | Out-File "C:\GLD\Agent\.listener_state.json"
             
@@ -751,7 +749,7 @@ while ($listener.IsListening) {
             $responseData = @{
                 status = "scheduled"
                 test_id = $command.test_id
-                wrapper_script = $wrapperPath
+                test_script = "RunTest.ps1"
                 scheduled_start = (Get-Date).AddSeconds(5).ToString("o")
                 listener_will_terminate = $true
             } | ConvertTo-Json
@@ -786,126 +784,9 @@ while ($listener.IsListening) {
 }
 ```
 
-### Wrapper Script Generator
+---
 
-**WrapperGenerator.ps1**
-
-```powershell
-function New-TestWrapperScript {
-    param(
-        [object]$Command,
-        [string]$OutputPath
-    )
-    
-    $testID = $Command.test_id
-    $iterations = $Command.iterations
-    $monitoring = $Command.monitoring
-    $waitTime = $Command.monitoring.wait_time
-    
-    $wrapperContent = @"
-# Auto-generated test wrapper script
-# Generated: $(Get-Date -Format "yyyy-MM-dd HH:mm:ss")
-# Test ID: $testID
-# Iterations: $iterations
-
-`$ErrorActionPreference = "Stop"
-`$LogFile = "C:\Temp\test_execution_$testID.log"
-
-function Write-Log {
-    param([string]`$Message)
-    `$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "`$timestamp - `$Message" | Tee-Object -FilePath `$LogFile -Append
-}
-
-try {
-    Write-Log "=== Test Wrapper Script Started ==="
-    Write-Log "Test ID: $testID"
-    Write-Log "Iterations: $iterations"
-    
-    # Step 1: Wait for listener to fully terminate
-    Write-Log "Waiting 5 seconds for listener to terminate..."
-    Start-Sleep -Seconds 5
-    
-    # Step 2: Verify listener is stopped
-    `$listenerProcess = Get-Process -Name "powershell" -ErrorAction SilentlyContinue | 
-                       Where-Object { `$_.CommandLine -like "*DUTListener*" }
-    if (`$listenerProcess) {
-        Write-Log "WARNING: Listener still running, forcing stop..."
-        Stop-Process -Id `$listenerProcess.Id -Force
-        Start-Sleep -Seconds 2
-    }
-    Write-Log "Listener confirmed stopped"
-    
-    # Step 3: Stop background services
-    Write-Log "Stopping background services..."
-    & "C:\GLD\Scripts\Stop-BackgroundServices.ps1"
-    
-    # Step 4: Execute test (multiple iterations)
-    for (`$i = 1; `$i -le $iterations; `$i++) {
-        Write-Log "=== Iteration `$i of $iterations ==="
-        
-        `$testParams = @{
-            TestID = "$testID"
-            WaitTime = $waitTime
-        }
-        
-$(if ($monitoring.socwatch) { "        `$testParams['SoCWatch'] = `$true" })
-$(if ($monitoring.powermeter) { "        `$testParams['PowerMeter'] = `$true" })
-        
-        & "C:\GLD\New_Flow_5\RunTest.ps1" @testParams
-        
-        Write-Log "Iteration `$i completed"
-        
-        if (`$i -lt $iterations) {
-            Write-Log "Waiting 30 seconds before next iteration..."
-            Start-Sleep -Seconds 30
-        }
-    }
-    
-    Write-Log "All iterations completed successfully"
-    
-    # Step 5: Restart background services
-    Write-Log "Restarting background services..."
-    & "C:\GLD\Scripts\Start-BackgroundServices.ps1"
-    
-    # Step 6: Restart listener agent (PostStep)
-    Write-Log "Restarting DUT Listener Agent..."
-    Start-Process -FilePath "C:\GLD\Agent\Start-DUTListener.ps1" -WindowStyle Hidden
-    Start-Sleep -Seconds 3
-    
-    # Verify listener restarted
-    `$listenerProcess = Get-Process -Name "powershell" -ErrorAction SilentlyContinue | 
-                       Where-Object { `$_.CommandLine -like "*DUTListener*" }
-    if (`$listenerProcess) {
-        Write-Log "Listener restarted successfully (PID: `$(`$listenerProcess.Id))"
-    } else {
-        Write-Log "ERROR: Failed to restart listener"
-    }
-    
-    Write-Log "=== Test Wrapper Script Completed ==="
-}
-catch {
-    Write-Log "ERROR: `$(`$_.Exception.Message)"
-    Write-Log "Stack Trace: `$(`$_.ScriptStackTrace)"
-    
-    # Emergency: Ensure listener restarts even on error
-    Write-Log "Emergency restart of listener..."
-    Start-Process -FilePath "C:\GLD\Agent\Start-DUTListener.ps1" -WindowStyle Hidden
-}
-finally {
-    # Step 7: Self-destruct (delete this wrapper script)
-    Write-Log "Cleaning up wrapper script..."
-    Start-Sleep -Seconds 2
-    Remove-Item -Path `$PSCommandPath -Force -ErrorAction SilentlyContinue
-}
-"@
-    
-    $wrapperContent | Out-File -FilePath $OutputPath -Encoding UTF8
-    Write-Log "Wrapper script created: $OutputPath"
-}
-```
-
-### Control Server Implementation (Python Example)
+## Communication Protocol
 
 **orchestrator.py**
 

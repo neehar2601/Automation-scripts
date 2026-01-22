@@ -2,7 +2,11 @@
 
 ## Overview
 
-The **NiDaq Server** (NiDaq_Server.py) is a socket-based server application designed to control and coordinate power measurement testing using PACS (Power Analysis and Control System) hardware. It acts as a central orchestrator for automated test execution, data collection, and system control in a distributed testing environment.
+The **NiDaq Server** (NiDaq_Server.py) is a socket-based server application designed to control and coordinate power measurement testing using PACS (Power Analysis and Characterization Software) hardware. It acts as a central orchestrator for automated test execution, data collection, and system control in a distributed testing environment.
+
+**Current Version:** 1.13  
+**Last Updated:** January 22, 2026  
+**Primary Language:** Python 3.x
 
 ## Architecture
 
@@ -40,48 +44,63 @@ The **NiDaq Server** (NiDaq_Server.py) is a socket-based server application desi
 
 ## Core Components
 
-### 1. Configuration Management
+### Configuration Management
 
 The server reads from a `config.ini` file containing:
 
 - **Server Settings**: Host IP and port
 - **Path Configuration**: 
-  - `result_path`: Where measurement results are stored
-  - `PACS_exe_path`: Location of PACS executable
-  - `PACS_path`: PACS installation directory
-  - `config_file_path`: Test configuration file
-  - `delay_before_start_recording`: Pre-recording delay
+  - `result_path`: Where measurement results are stored (e.g., `C:\Test\results`)
+  - `PACS_exe_path`: Location of PACS executable (e.g., `C:\Intel\PACS\pacs.exe`)
+  - `PACS_path`: PACS installation directory (e.g., `C:\Intel\PACS` or `C:\Program Files\PACS`)
+  - `config_file_path`: Test configuration file (e.g., `C:\Test\testconfig.csv`)
+  - `delay_before_start_recording`: Pre-recording delay (default: 10 seconds)
+
+**Additional Path Constants:**
+- `KSR_path`: `C:\KSR_Package\KSR\Test_Run_KR` (Client-side test framework path)
+- `SUT_result_path`: `C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results` (Client result storage)
 
 **Example Configuration:**
 ```ini
 [Server]
-host = 192.168.1.10
+host = 192.168.0.3
 port = 55555
 
 [Paths]
-result_path = C:\Test\results\
-PACS_exe_path = C:\Program Files\PACS\pacs.exe
-PACS_path = C:\Program Files\PACS\
-config_file_path = C:\Test\configs\default.cfg
-delay_before_start_recording = 5
+result_path = C:\Test\results
+PACS_exe_path = C:\Intel\PACS\pacs.exe
+PACS_path = C:\Intel\PACS
+config_file_path = C:\Test\testconfig.csv
+delay_before_start_recording = 10
 ```
+
+**Important Notes:**
+- The server supports both `C:\Intel\PACS` and `C:\Program Files\PACS` installation paths
+- PACS path is automatically added to Python `sys.path` for `__pyPACS` import
+- Configuration validation ensures all required paths exist before server starts
 
 ### 2. PACS Integration
 
-Uses the `pyPACS` library to control power measurement hardware:
+Uses the `__pyPACS` library (Intel proprietary) to control power measurement hardware:
 
 - **Status Codes**:
-  - `-1`: Not running
-  - `2`: Running/Ready
-  - `3`: Recording
+  - `-1`: Not running / None
+  - `0`: Unconfigured
+  - `1`: Configured Idle
+  - `2`: Running (Ready to record)
+  - `3`: Collecting Data (Recording)
+  - `4`: Paused
+  - `5`: Processing Data
 
 - **Key Operations**:
-  - `p.runPACS()`: Start PACS application
-  - `p.loadConfig()`: Load measurement configuration
-  - `p.startDAQ()`: Initialize data acquisition
-  - `p.record()`: Start recording measurements
-  - `p.stop()`: Stop recording
-  - `p.exit()`: Close PACS
+  - `p.version()`: Get PACS version string
+  - `p.runPACS(exe_path)`: Start PACS application (accepts path with spaces using quotes)
+  - `p.loadConfig(config_path)`: Load measurement configuration from CSV
+  - `p.startDAQ(mode)`: Initialize data acquisition (mode: 0)
+  - `p.record(path, filename)`: Start recording measurements to specified directory
+  - `p.stop()`: Stop current recording
+  - `p.exit()`: Close PACS application
+  - `p.status()`: Get current PACS state (returns string: "-1", "0", "1", "2", "3", "4", "5")
 
 **PACS State Machine:**
 ```
@@ -92,39 +111,78 @@ Uses the `pyPACS` library to control power measurement hardware:
      │ runPACS()
      ▼
 ┌─────────┐
-│ Running │
-│   (2)   │
+│Unconfigured
+│   (0)   │
 └────┬────┘
-     │ record()
+     │ loadConfig()
      ▼
-┌──────────┐
-│Recording │
+┌─────────┐
+│Configured
+│Idle (1) │
+└────┬────┘
+     │ startDAQ()
+     ▼
+┌─────────┐
+│ Running │ ←─────┐
+│   (2)   │       │
+└────┬────┘       │
+     │ record()   │ stop()
+     ▼            │
+┌──────────┐      │
+│Recording │──────┘
 │   (3)    │
 └────┬─────┘
-     │ stop()
+     │ exit()
      ▼
 ┌─────────┐
 │ Stopped │
+│  (-1)   │
 └─────────┘
+```
+
+**Special Handling for Program Files Path:**
+```python
+if "Program Files\PACS" in PACS_exe_path:
+    p.runPACS('"C:\Program Files\PACS\pacs.exe"')  # Quoted path
+else:
+    p.runPACS(PACS_exe_path)
 ```
 
 ### 3. Command Protocol (Codes 101-113)
 
 The server accepts numeric commands from clients:
 
-| Code | Function | Description | Parameters |
-|------|----------|-------------|------------|
-| **101** | Online Check | Returns PACS version | None |
-| **103** | Start PACS | Initializes PACS with configuration | None |
-| **104** | PACS Status | Returns current PACS state | None |
-| **105** | Simple Record | Basic recording with timing control | `<record_time> <initial_wait> <filename>` |
-| **106** | Stop PACS | Stops recording and exits PACS | None |
-| **107** | File Transfer | Sends CSV results to client | `<folder_name>` |
-| **109** | Set Temperature | Controls test chamber temperature | `<target_temp>` |
-| **110** | Get Temperature | Fetches current temperature | None |
-| **111** | Copy Results | Transfers results to local storage | `<source_path> <dest_path>` |
-| **112** | Advanced Record | Complex multi-workload orchestration | See below |
-| **113** | Network Copy | Copies results via network share | `<network_path>` |
+| Code | Function | Description | Status |
+|------|----------|-------------|--------|
+| **101** | Online Check | Returns PACS version | ✅ Implemented |
+| **102** | Create Test Case | Client-side only (not server) | ⚠️ Client |
+| **103** | Start PACS | Initializes PACS with configuration | ✅ Implemented |
+| **104** | PACS Status | Returns current PACS state | ✅ Implemented |
+| **105** | Start Recording | Recording with timing control (W:R: format) | ✅ Implemented |
+| **106** | Stop PACS | Stops recording and exits PACS | ✅ Implemented |
+| **107** | File Transfer | Sends CSV results to client | ✅ Implemented |
+| **108** | Mark Complete | Client-side only (updates KPI list) | ⚠️ Client |
+| **109** | Set Temperature | Controls test chamber temperature | ✅ Implemented |
+| **110** | Get Temperature | Fetches current temperature | ✅ Implemented |
+| **111** | Copy Results | Client-side result organization | ⚠️ Client |
+| **112** | Advanced Test | Complex multi-workload orchestration | ✅ Implemented |
+| **113** | Network Copy | Copies results via network share (server-side) | ✅ Implemented |
+
+**Command Validation:**
+```python
+# Server validates incoming commands
+if isinstance(message, str) and "105" in message:
+    # Special handling for 105 with parameters
+elif isinstance(message, str) and "112" in message:
+    # Special handling for 112 (most complex)
+elif not isinstance(message, numbers.Number):
+    try:
+        value = int(message)
+        if not 101 <= value <= 113:
+            print_error("Invalid code")
+    except ValueError:
+        print_error("Invalid code")
+```
 
 ### Code 101: Online Check
 ```
@@ -143,110 +201,254 @@ Server Actions:
 Server → Client: "PACS Started Successfully" or "PACS Already Running"
 ```
 
-### Code 105: Simple Recording
+### Code 105: Recording with W:R: Format
+
+**Input Format:**
 ```
-Client → Server: "105 120 30 Test1"
-Parameters:
-  - Record Time: 120 seconds
-  - Initial Wait: 30 seconds
-  - Filename: Test1
+"105 W:30:R:60:W:10"
+```
+
+**Parameter Format:**
+- `W:<seconds>`: Wait for specified seconds
+- `R:<seconds>`: Record for specified seconds
+
+**Execution Logic:**
+```python
+parts = message.split(" ")
+if len(parts) > 1:
+    values = parts[1].split(":")  # ["W", "30", "R", "60", "W", "10"]
+    
+    # Check if all values contain 'R' or 'W'
+    if all(any(c in v.lower() for c in ["r", "w"]) for v in values):
+        record_count = 0
+        for value in values:
+            time_part = "".join(filter(str.isdigit, value))    # Extract numbers
+            action_part = "".join(filter(str.isalpha, value))  # Extract letters
+            
+            if action_part.lower() == "w":  # Wait
+                time.sleep(int(time_part))
+            elif action_part.lower() == "r":  # Record
+                record_count += 1
+                p.record(result_path, f"NiDaqResult{record_count}")
+                if int(time_part) > 0:
+                    time.sleep(int(time_part) - 2)
+                    if not p.status() == "-1":
+                        p.stop()
+```
+
+**Example:**
+```
+Client → "105 W:30:R:60:W:10:R:120"
 
 Server Actions:
   1. Wait 30 seconds
-  2. Start recording (filename: Test1_Nidaq_Result)
-  3. Wait 120 seconds
+  2. Start recording (NiDaqResult1)
+  3. Record for 60 seconds
   4. Stop recording
-Server → Client: "Recording Complete"
+  5. Wait 10 seconds
+  6. Start recording (NiDaqResult2)
+  7. Record for 120 seconds
+  8. Stop recording
+```
+
+**Simple Mode (No Parameters):**
+```
+Client → "105"
+
+Server Actions:
+  1. Wait <delay_before_start_recording> seconds (from config, default: 10)
+  2. Start recording (NiDaqResult)
+  3. [Recording continues until manual stop]
 ```
 
 ### Code 112: Advanced Test Execution (Most Complex)
 
 **Input Format:**
 ```
-112 -TestId:GLD1001 -InitialWait:60 -WorkloadInitialWait:30 
--JWORKLOAD(Repeat:3,Record:120,Wait:10,InitialWait:5) 
--SOCWATCH(Repeat:2,Record:60,Wait:15)
--RESTART
--DEBUG
+"112 -TestId:GLD1015 -InitialWait:60 -WorkloadInitialWait:30 
+     -JWORKLOAD(InitialWait:10,Repeat:3,Record:120,Wait:30) 
+     -SOCWATCH(Repeat:2,Record:60,Wait:15)
+     -RESTART"
 ```
 
-**Parameters:**
-- `-TestId`: Test identification
-- `-InitialWait`: Pre-test wait time (seconds)
-- `-WorkloadInitialWait`: Wait before first workload
-- `-JWORKLOAD(...)`: Primary workload definition
-  - `Repeat`: Number of iterations
-  - `Record`: Recording duration per iteration
-  - `Wait`: Wait time between iterations
-  - `InitialWait`: Wait before starting workload
-- `-SOCWATCH(...)`: Monitoring workload (similar params)
-- `-RESTART`: Reboot system after test
-- `-DEBUG`: Enable debug log collection
+**Supported Workload Types:**
+- `JWORKLOAD`: Primary test workload (Just Workload)
+- `SoCWatch`: Intel SoC monitoring tool
+- `WLC`: Windows Lifecycle
+- `TypePerf`: Windows Performance counters
+- `Emon_edp`: Intel EMON Energy Data Processor
+- `ETL`: Event Trace for Windows
+
+**Parameter Extraction (Regex):**
+```python
+# Patterns for workload parameters
+patterns = {
+    "JWORKLOAD": r"-JWORKLOAD\(([^)]+)\)",
+    "SoCWatch":  r"-SOCWATCH\(([^)]+)\)",
+    "WLC":       r"-WLC\(([^)]+)\)",
+    "TypePerf":  r"-TYPEPERF\(([^)]+)\)",
+    "Emon_edp":  r"-EMON_EDP\(([^)]+)\)",
+    "ETL":       r"-ETL\(([^)]+)\)"
+}
+
+# Extract key:value pairs
+pattern = re.compile(r"-(\w+):([\w\-]+)", re.IGNORECASE)
+params = dict(pattern.findall(message))
+
+# Result:
+# params = {
+#     "TestId": "GLD1015",
+#     "InitialWait": "60",
+#     "WorkloadInitialWait": "30",
+#     "WorkloadRestart": "Yes"  # if present
+# }
+
+# Find debug tools (workloads to monitor)
+debug_pattern = r'-(\w+)(?=\()'
+debug_params = [match for match in re.findall(debug_pattern, message) 
+                if match.upper() != 'JWORKLOAD']
+# Result: ["SOCWATCH", "WLC"] (excluding JWORKLOAD)
+
+# Check for restart flag
+Restart = bool(re.search('-RESTART', message))
+```
+
+**Per-Workload Parameters:**
+```python
+for name, pattern in patterns.items():
+    match = re.search(pattern, part, re.IGNORECASE)
+    if match:
+        params = {}
+        for kv in match.group(1).split(","):
+            k, v = kv.split(":")
+            params[k.strip()] = v.strip()
+        
+        # Result for JWORKLOAD(InitialWait:10,Repeat:3,Record:120,Wait:30):
+        # params = {
+        #     "InitialWait": "10",
+        #     "Repeat": "3",
+        #     "Record": "120",
+        #     "Wait": "30"
+        # }
+```
 
 ## Workflow for Code 112 (Advanced Test Execution)
 
-This is the most complex operation, designed for comprehensive test scenarios:
+This is the most complex operation, designed for comprehensive test scenarios with multiple monitoring tools and workloads.
 
 ### Execution Flow
 
 ```
-1. Parse Test Parameters
-   ├─ Extract TestId (e.g., GLD1001)
+1. Command Reception & Parsing
+   ├─ Receive "112" command with parameters
+   ├─ Extract TestId (e.g., GLD1015)
    ├─ Extract timing parameters (InitialWait, WorkloadInitialWait)
    ├─ Identify workloads (JWORKLOAD, SoCWatch, WLC, TypePerf, EMON_EDP, ETL)
-   └─ Detect flags (DEBUG, RESTART, NORESTART)
+   ├─ Extract debug tools (all workloads except JWORKLOAD)
+   └─ Detect restart flag (-RESTART)
 
-2. Pre-Test Setup
-   ├─ Stop any running PACS instance
-   ├─ Collect background service reports (collect_report())
-   ├─ Apply initial wait time (InitialWait)
-   └─ Start PACS with configuration (runPACS() → loadConfig() → startDAQ())
+2. Pre-Test System Cleanup & Preparation
+   ├─ Stop any running PACS instance (p.stop(), p.exit())
+   ├─ Wait 60 seconds for system stabilization
+   ├─ Collect background service reports (collect_report(test_id))
+   ├─ psexec → Report.bat on client system
+   └─ Apply InitialWait timing (sleep_timer)
 
-3. Workload-Specific Pre-execution
-   ├─ GLD1006: Initiate Modern Standby via TTK (mcs_ttk())
-   ├─ GLD6001/6002: Run pre-test scripts via psexec
-   └─ Apply workload initial wait (WorkloadInitialWait)
+3. PACS Initialization
+   ├─ Check if PACS is stopped (p.status() == "-1")
+   ├─ If stopped:
+   │   ├─ Start PACS: p.runPACS(PACS_exe_path)
+   │   ├─ Load configuration: p.loadConfig(config_file_path)
+   │   └─ Start DAQ: p.startDAQ(0)
+   └─ If not ready: Log error
 
-4. For Each Workload Type (JWORKLOAD, SOCWATCH, WLC, etc.):
+4. Test-Specific Pre-Execution Scripts
+   ├─ GLD1006: Initiate Modern Standby via TTK
+   │   ├─ Calculate total runtime for CS (Connected Standby)
+   │   ├─ Check for TTK library (FrontPanel.py)
+   │   └─ Execute mcs_ttk() to put system to sleep
    │
-   ├─ Set Power Mode (if applicable)
-   │   └─ power_mode(mode="Best Performance/Balanced/Best Power Efficiency")
+   ├─ GLD6001: Execute pre-test script
+   │   └─ psexec → GLD6001_pre.exe
+   │
+   ├─ GLD6002: Execute pre-test script
+   │   └─ psexec → GLD6002_pre.exe
+   │
+   ├─ GLD1001: Execute pre-test script
+   │   └─ psexec → GLD1001_pre.exe
+   │
+   ├─ GLD5001: Execute pre-test script
+   │   └─ psexec → GLD5001_pre.exe
+   │
+   └─ GLD5002: Execute pre-test script
+       └─ psexec → GLD5002_pre.exe
+
+5. WorkloadInitialWait
+   └─ sleep_timer(WorkloadInitialWait) - Wait before starting workloads
+
+6. For Each Workload Type (JWORKLOAD, SOCWATCH, WLC, etc.):
+   │
+   ├─ Mark workload start in logs (power_mode if not GLD1006/GLD1013)
+   │   └─ power_mode("{workload}_Started")
    │
    ├─ For Each Repeat Iteration:
    │   │
-   │   ├─ Execute pre-check scripts (if TestId requires)
-   │   │   └─ psexec() to run validation scripts
+   │   ├─ Execute test-specific repeat scripts (if applicable)
+   │   │   ├─ GLD6001: psexec → Seek.exe --KPIID GLD6001
+   │   │   ├─ GLD6002: psexec → Seek.exe --KPIID GLD6002
+   │   │   └─ GLD1003: psexec → GLD1003.bat
    │   │
-   │   ├─ Start debug log collection (if -DEBUG flag present)
-   │   │   └─ collect_debug_logs(workload, "START", iteration)
+   │   ├─ Pre-check validation
+   │   │   ├─ For non-GLD1013 tests: Execute NiDaq_precheck.exe
+   │   │   └─ Wait for client response: "pass" or "fail"
+   │   │   └─ If "fail": Log error and skip to next iteration
+   │   │
+   │   ├─ InitialWait (first iteration only)
+   │   │   └─ If workload has InitialWait parameter and iteration == 1
+   │   │       └─ sleep_timer(InitialWait)
+   │   │
+   │   ├─ Start debug log collection (if workload in debug_params)
+   │   │   └─ collect_debug_logs(workload, "START")
    │   │
    │   ├─ Begin PACS Recording
-   │   │   ├─ Filename: {TestId}_Nidaq_Result_{WorkloadName}_{Iteration}
-   │   │   ├─ Example: GLD1001_Nidaq_Result_JWORKLOAD_1
-   │   │   └─ p.record(filename)
+   │   │   ├─ If Repeat == 1:
+   │   │   │   └─ Filename: {TestId}_Nidaq_Result_{WorkloadName}
+   │   │   └─ If Repeat > 1:
+   │   │       └─ Filename: {TestId}_Nidaq_Result_{WorkloadName}_{Iteration}
+   │   │   └─ p.record(result_path, filename)
    │   │
    │   ├─ Wait for recording duration
-   │   │   └─ sleep_timer(record_time) with countdown display
+   │   │   └─ time.sleep(record_time - 2)
    │   │
    │   ├─ Stop PACS Recording
-   │   │   └─ p.stop()
+   │   │   └─ if not p.status() == "-1": p.stop()
    │   │
-   │   ├─ Stop debug log collection (if -DEBUG flag present)
-   │   │   └─ collect_debug_logs(workload, "STOP", iteration)
+   │   ├─ Stop debug log collection (if workload in debug_params)
+   │   │   └─ collect_debug_logs(workload, "STOP")
    │   │
    │   └─ Apply post-recording wait time
    │       └─ sleep_timer(wait_time)
    │
-   └─ Reset Power Mode (if changed)
+   ├─ Mark workload end in logs (power_mode if not GLD1006/GLD1013)
+   │   └─ power_mode("{workload}_Ended")
+   │
+   └─ Wake from Modern Standby (if GLD1006 and TTK was used)
+       └─ mcs_ttk() to wake system
 
-5. Post-Test Cleanup
-   ├─ Stop and exit PACS
-   │   └─ p.stop() → p.exit()
-   ├─ Run workload-specific cleanup scripts
-   │   └─ psexec() for cleanup commands
-   └─ Execute restart/no-restart post script
-       ├─ If -RESTART: Reboot system
-       └─ If -NORESTART: No action
+7. Post-Test PACS Cleanup
+   ├─ Wait 10 seconds
+   ├─ Stop PACS: p.stop()
+   └─ Exit PACS: p.exit()
+
+8. Test-Specific Post-Execution Scripts
+   ├─ GLD5001/GLD5002: Execute cleanup
+   │   └─ psexec → teams_del.exe
+   └─ All tests: Execute post-test script
+       ├─ If -RESTART flag: psexec → Client_Post.cmd Restart
+       └─ If no -RESTART: psexec → Client_Post.cmd NoRestart
+
+9. Test Complete
+   └─ Server ready for next command
 ```
 
 ### Visual Workflow Diagram
@@ -335,222 +537,478 @@ Uses `psexec` for remote command execution on client systems:
 
 **Function Signature:**
 ```python
-def psexec(cmd, DUT_IP, DUT_username, DUT_pwd):
+def psexec(cmd):
     """
     Execute command on remote system
     
     Args:
-        cmd: Command to execute
-        DUT_IP: Target system IP
-        DUT_username: Username for authentication
-        DUT_pwd: Password for authentication
+        cmd: Full psexec command string including target IP, credentials, and command
     
     Returns:
-        Subprocess return code
+        Prints stdout, stderr, and return code
+    
+    Process:
+        - Uses subprocess.run() with shell=True
+        - Captures both stdout and stderr as text
+        - Has 300-second (5-minute) timeout
+        - Logs command execution and results
     """
+    try:
+        print_Info(cmd)
+        result = subprocess.run(
+            cmd, 
+            shell=True, 
+            capture_output=True, 
+            text=True, 
+            timeout=300
+        )
+        print("Return code:", result.returncode)
+        print(result.stdout)
+        print(result.stderr)
+    except Exception as e:
+        print("Error:", e)
+```
+
+**Command Format:**
+```python
+# Template
+psexec_cmd = rf'psexec \\{client_ip} -i 1 -d -u "Administrator" -p "" ' \
+             rf'-w "{working_dir}" cmd /c "{command}"'
+
+# Flags explained:
+# -i 1         : Run interactively in session 1
+# -d           : Don't wait for process to terminate (detached mode)
+# -u "Admin"   : Username for authentication
+# -p ""        : Password (empty in this implementation)
+# -w "path"    : Working directory for command execution
+# cmd /c "..."  : Execute command via cmd.exe
 ```
 
 **Use Cases:**
-- Trigger test workloads on SUT (System Under Test)
-- Execute pre/post test scripts
-- Collect debug logs
-- Control system state (reboot, sleep, wake)
-
-**Example:**
+1. **Start Test Workloads:**
 ```python
-# Start a workload on remote system
-psexec("C:\\Tests\\workload.exe", "192.168.1.100", "admin", "password")
+psexec(rf'psexec \\{client_ip} -i 1 -d -u "Administrator" -p "" ' \
+       rf'-w "C:\KSR_Package\KSR\Test_Run_KR\GLD\Script" cmd /c "GLD1015_pre.exe"')
+```
 
-# Collect debug logs
-psexec("C:\\Tools\\collect_logs.bat START", "192.168.1.100", "admin", "password")
+2. **Collect Debug Logs:**
+```python
+psexec(rf'psexec \\{client_ip} -u "Administrator" -p "" ' \
+       rf'-w {KSR_path} cmd /c "Tool.bat SOCWATCH START {test_id}"')
+```
+
+3. **Execute Post-Test Scripts:**
+```python
+psexec(rf'psexec \\{client_ip} -i 1 -d -u "Administrator" -p "" ' \
+       rf'-w {KSR_path} cmd /c "Client_Post.cmd Restart"')
+```
+
+4. **Collect Background Reports:**
+```python
+psexec(rf'psexec \\{client_ip} -d -u "Administrator" -p "" ' \
+       rf'-w {KSR_path} cmd /c "Report.bat {test_id}"')
 ```
 
 ### 2. Multi-Workload Support
 
 Handles multiple workload types simultaneously or sequentially:
 
-| Workload | Purpose | Typical Use |
-|----------|---------|-------------|
-| **JWORKLOAD** | Primary test workload | Main performance/power test |
-| **SoCWatch**  | Intel SoC monitoring | Platform power analysis |
-| **WLC**       | Windows Lifecycle | System state transitions |
-| **TypePerf**  | Performance counters | CPU/Memory/Disk metrics |
-| **EMON_EDP**  | Energy monitoring | Core-level power analysis |
-| **ETL**       | Event tracing | System event logging |
+| Workload | Purpose | Typical Use | Detection Pattern |
+|----------|---------|-------------|-------------------|
+| **JWORKLOAD** | Primary test workload | Main performance/power test | `-JWORKLOAD(...)` |
+| **SoCWatch**  | Intel SoC monitoring | Platform power analysis | `-SOCWATCH(...)` |
+| **WLC**       | Windows Lifecycle | System state transitions | `-WLC(...)` |
+| **TypePerf**  | Performance counters | CPU/Memory/Disk metrics | `-TYPEPERF(...)` |
+| **Emon_edp**  | Energy monitoring | Core-level power analysis | `-EMON_EDP(...)` |
+| **ETL**       | Event tracing | System event logging | `-ETL(...)` |
+
+**Regex Pattern Matching:**
+```python
+patterns = {
+    "JWORKLOAD": r"-JWORKLOAD\(([^)]+)\)",
+    "SoCWatch":  r"-SOCWATCH\(([^)]+)\)",
+    "WLC":       r"-WLC\(([^)]+)\)",
+    "TypePerf":  r"-TYPEPERF\(([^)]+)\)",
+    "Emon_edp":  r"-EMON_EDP\(([^)]+)\)",
+    "ETL":       r"-ETL\(([^)]+)\)"
+}
+```
+
+**Debug Tool Identification:**
+```python
+# Find all debug tools (excluding JWORKLOAD which is the main workload)
+debug_pattern = r'-(\w+)(?=\()'
+result = re.findall(debug_pattern, message)
+debug_params = [match for match in result if match.upper() != 'JWORKLOAD']
+# Example result: ["SOCWATCH", "WLC", "TYPEPERF"]
+```
 
 **Example Multi-Workload Test:**
 ```
-112 -TestId:GLD1001 -InitialWait:60
+112 -TestId:GLD1015 -InitialWait:60
 -JWORKLOAD(Repeat:3,Record:120,Wait:10)
 -SOCWATCH(Repeat:3,Record:120,Wait:10)
 -TYPEPERF(Repeat:3,Record:120,Wait:10)
 ```
 
-This will:
-1. Run JWORKLOAD 3 times (each 120s recording)
-2. Run SOCWATCH 3 times (each 120s recording)
-3. Run TYPEPERF 3 times (each 120s recording)
+**Execution Sequence:**
+1. JWORKLOAD runs 3 times (3 x 120s recording = 360s total)
+2. SOCWATCH runs 3 times (3 x 120s recording = 360s total)
+3. TYPEPERF runs 3 times (3 x 120s recording = 360s total)
 4. All synchronized with PACS power measurements
+5. Each workload produces separate result files
 
 ### 3. Debug Log Collection
 
-The `collect_debug_logs()` function triggers collection of:
+The `collect_debug_logs()` function triggers collection of monitoring tool data on the client system.
 
 **Function Signature:**
 ```python
-def collect_debug_logs(workload_name, mode, iteration):
+def collect_debug_logs(tool, action):
     """
-    Collect debug logs for specific workload
+    Collect debug logs for specific workload/tool
     
     Args:
-        workload_name: Name of workload (JWORKLOAD, SOCWATCH, etc.)
-        mode: "START" or "STOP"
-        iteration: Current iteration number
+        tool: Name of tool (JWORKLOAD, SOCWATCH, WLC, etc.)
+        action: "START" or "STOP"
     
     Actions:
-        - Executes remote script via psexec
-        - Logs are collected on SUT
+        - Executes Tool.bat on remote client via psexec
+        - Passes test_id as parameter
+        - Logs are collected on client system (SUT)
         - Synchronized with PACS recording
+    
+    Special Handling:
+        - GLD1006: Uses -d flag (detached mode)
+        - Other tests: Runs without -d flag (waits for completion)
     """
+    print_Info(f"{tool} {action}")
+    
+    if test_id == "GLD1006":
+        debug_str = rf'psexec \\{client_ip} -d -u "Administrator" -p "" ' \
+                    rf'-w {KSR_path} cmd /c "Tool.bat {tool.upper()} {action.upper()} {test_id}"'
+    else: 
+        debug_str = rf'psexec \\{client_ip} -u "Administrator" -p "" ' \
+                    rf'-w {KSR_path} cmd /c "Tool.bat {tool.upper()} {action.upper()} {test_id}"'
+    
+    psexec(debug_str)
 ```
 
-**Debug Log Types:**
-- **Tool-specific logs**: SoCWatch output, TypePerf CSV
-- **System state**: Running processes, services, drivers
-- **Performance counters**: CPU, memory, disk usage
-- **Event logs**: Windows event viewer exports
+**Tool.bat Command Format:**
+```batch
+Tool.bat SOCWATCH START GLD1015
+Tool.bat SOCWATCH STOP GLD1015
+Tool.bat WLC START GLD1015
+Tool.bat WLC STOP GLD1015
+```
 
-**Workflow:**
+**Debug Log Types Collected:**
+- **SoCWatch**: Platform power/performance metrics (CPU, GPU, NPU, memory, display)
+- **WLC**: Windows Lifecycle events (sleep/wake, power transitions)
+- **TypePerf**: Windows performance counters (CPU%, memory, disk I/O)
+- **EMON**: Low-level CPU performance counters (cache, TLB, branch prediction)
+- **ETL**: Windows Event Tracing (kernel events, context switches)
+
+**Workflow Integration:**
 ```
 START Recording
   ↓
-DEBUG START → Collect pre-test state
+collect_debug_logs("SOCWATCH", "START") → Start SoCWatch on client
+  ↓
+p.record() → Start PACS power recording
   ↓
 [Test runs for 120s]
   ↓
-DEBUG STOP → Collect post-test state
+p.stop() → Stop PACS recording
+  ↓
+collect_debug_logs("SOCWATCH", "STOP") → Stop SoCWatch on client
   ↓
 STOP Recording
 ```
 
+**Result Files (on Client):**
+```
+C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD1015\
+├── GLD1015_SOCWATCH_START.log
+├── GLD1015_SOCWATCH_STOP.log
+├── socwatch_output.csv
+├── WLC_events.etl
+└── typeperf_counters.csv
+```
+
 ### 4. Temperature Control
 
-Integration with temperature control system (test chamber):
+Integration with temperature control system (thermal chamber via KSRTemp.py):
 
 **Function: Code 109 (Set Temperature)**
 ```python
-# Set temperature to 25°C
-send_command("109 25")
+# Client sends temperature value
+Client → "109"
+Server → "Waiting for Temperature...."
 
-# Server executes:
-subprocess.call(["python", "KSRTemp.py", "25"])
+# Client sends temperature (e.g., "25")
+Client → "25"
+Server → "Temperature Values received by Server successfully."
+
+# Server executes temperature control script
+cmd = ["python", "KSRTemp.py", "--set", "25"]
+result = subprocess.run(cmd, capture_output=True, text=True)
+
+if result.stderr:
+    Server → "Failed to set temperature"
+else:
+    Server → "Temperature has been successfully set"
 ```
 
 **Function: Code 110 (Get Temperature)**
 ```python
-# Query current temperature
-current_temp = send_command("110")
-# Returns: "Current Temperature: 25.3°C"
+# Client requests current temperature
+Client → "110"
+
+# Server queries temperature
+result = subprocess.run(["python", "KSRTemp.py"], capture_output=True, text=True)
+
+# Parse output using regex
+output = result.stdout.strip()
+match = re.search(r"Current Temperature:\s*(\d+(\.\d+)?)", output)
+if match:
+    temperature = round(float(match.group(1)), 1)
+    Server → f"Current Temperature:{temperature}"
+else:
+    Server → "Temperature not found"
 ```
 
-**Use Case:**
+**Use Case Example:**
 Test device under controlled thermal conditions:
 ```
-1. Set temperature to 25°C
-2. Wait for stabilization (30 min)
-3. Run power test
-4. Set temperature to 35°C
-5. Wait for stabilization
-6. Run power test again
+1. Set temperature to 20°C → Code 109
+2. Wait for stabilization (30 minutes)
+3. Verify temperature → Code 110 (returns "Current Temperature:20.1")
+4. Run power test → Code 112
+5. Set temperature to 30°C → Code 109
+6. Wait for stabilization (30 minutes)
+7. Run power test again → Code 112
+8. Compare power at different temperatures
 ```
 
-### 5. File Transfer Mechanism
+**KSRTemp.py Interface:**
+- `python KSRTemp.py`: Get current temperature
+- `python KSRTemp.py --set <temp>`: Set target temperature
+- Returns formatted output: "Current Temperature: XX.X"
 
-Sophisticated file transfer for CSV results (Code 107):
+### 5. File Transfer Mechanism (Code 107)
+
+Sophisticated file transfer protocol for sending PACS CSV results to client:
 
 **Transfer Protocol:**
 ```
-Client → Server: "107 GLD1001_Nidaq_Result_JWORKLOAD_1"
+Client → Server: "107"
 
 Server Actions:
-1. Locate folder in result_path
-2. Find _summary.csv file
-3. Send folder name (string)
-4. Send file size (integer)
-5. Send file data in 1024-byte chunks
-6. Send completion signal
+1. Send acknowledgment: "START FILE TRANSFER"
+2. Wait for client ACK
+3. Send folder count (number of result folders)
+4. For each folder:
+   a. Wait for client: "Send the Size"
+   b. Send file size in bytes
+   c. Wait for client: "Send the filename"
+   d. Send filename (e.g., "NiDaqResult1_JWORKLOAD_1_summary.csv")
+   e. Wait for client: "Received file Content"
+   f. Send file data in 1024-byte chunks
+   g. Log completion
 
 Client Actions:
-1. Receive folder name
-2. Receive file size
-3. Create local file
-4. Receive chunks until complete
-5. Close file
+1. Send "107" command
+2. Receive "START FILE TRANSFER"
+3. Send "Send the folder count"
+4. Receive folder count
+5. For each folder:
+   a. Send "Send the Size"
+   b. Receive file size
+   c. Send "Send the filename"
+   d. Receive filename
+   e. Send "Received file Content"
+   f. Receive chunks until complete
+   g. Save file locally
+```
+
+**Server Implementation:**
+```python
+if message.lower().strip() == '107':
+    try:
+        print_Info("COPY THE RESULT CSV FILE FROM PACS TO CLIENT SYSTEM!")
+        client_socket.send("START FILE TRANSFER".encode('utf-8'))
+        
+        ack = client_socket.recv(1024).decode('utf-8')
+        print_Info(f"Client ACK: {ack}")
+        
+        # Get list of result folders starting with "NiDaqResult"
+        result_folders = [
+            folder for folder in os.listdir(result_path)
+            if os.path.isdir(os.path.join(result_path, folder)) 
+            and folder.startswith("NiDaqResult")
+        ]
+        
+        folder_count = len(result_folders)
+        print_Info(f"Total result folders: {folder_count}")
+        client_socket.send(str(folder_count).encode('utf-8'))
+        
+        for folder in result_folders:
+            folder_path = os.path.join(result_path, folder)
+            expected_filename = f"{folder}_summary.csv"
+            full_file_path = os.path.join(folder_path, expected_filename)
+            
+            if os.path.exists(full_file_path):
+                file_size = os.path.getsize(full_file_path)
+                print_Info(f"Preparing to send: {full_file_path} ({file_size} bytes)")
+                
+                # Send file size
+                print_Info(client_socket.recv(1024).decode('utf-8'))
+                client_socket.send(str(file_size).encode('utf-8'))
+                
+                # Send filename
+                print_Info(client_socket.recv(1024).decode('utf-8'))
+                client_socket.send(expected_filename.encode('utf-8'))
+                
+                # Send file content
+                print_Info(client_socket.recv(1024).decode('utf-8'))
+                with open(full_file_path, 'rb') as file:
+                    while chunk := file.read(1024):
+                        client_socket.send(chunk)
+                
+                print_Info("CSV file sent successfully.")
+            else:
+                print_Info(f"File not found: {full_file_path}")
+    
+    except Exception as e:
+        print_Info(f"Unexpected error: {e}")
 ```
 
 **Error Handling:**
-- Validates folder exists
-- Checks for `_summary.csv` file
-- Handles network interruptions
-- Reports transfer status
+- Validates folder existence before transfer
+- Checks for `_summary.csv` file in each folder
+- Handles FileNotFoundError, OSError, socket.error
+- Logs all transfer attempts and results
+- Continues to next folder if one fails
 
-**Example:**
-```python
-# Server side
-folder_path = "C:\\Test\\results\\GLD1001_Nidaq_Result_JWORKLOAD_1"
-csv_file = "GLD1001_Nidaq_Result_JWORKLOAD_1_summary.csv"
+**Result File Naming:**
+```
+NiDaqResult1/
+└── NiDaqResult1_summary.csv
 
-# Send file
-with open(csv_file, 'rb') as f:
-    while chunk := f.read(1024):
-        client_socket.send(chunk)
+GLD1015_Nidaq_Result_JWORKLOAD_1/
+└── GLD1015_Nidaq_Result_JWORKLOAD_1_summary.csv
+
+GLD1015_Nidaq_Result_SOCWATCH_2/
+└── GLD1015_Nidaq_Result_SOCWATCH_2_summary.csv
 ```
 
 ### 6. Modern Standby Support (GLD1006)
 
-Special handling for Connected Standby testing:
+Special handling for Connected Standby (CS) / Modern Standby testing:
 
 **Function: `mcs_ttk()`**
 ```python
-def mcs_ttk(duration_minutes):
+def mcs_ttk():
     """
-    Control Modern Connected Standby via TTK
-    
-    Args:
-        duration_minutes: How long system should sleep
+    Control Modern Connected Standby via TTK (Test Toolkit)
     
     Actions:
-        1. Validate network connectivity
-        2. Execute TTK power button press (sleep)
-        3. Wait for specified duration
-        4. Execute TTK power button press (wake)
-        5. Verify system wake
+        1. Execute KSR_CS_PowerButton.py script
+        2. Wait 5 seconds for system to respond
+        3. Check for errors
+    
+    Purpose:
+        - Press virtual power button to put system to sleep (CS entry)
+        - Or wake system from CS (CS exit)
+    
+    Hardware Requirement:
+        - TTK hardware connected to system
+        - FrontPanel.py library must be present at:
+          C:\SVshare\user_apps\ttk3\api\python\FrontPanel.py
     """
+    cmd = ["python", "KSR_CS_PowerButton.py"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    time.sleep(5)
+    
+    if result.stderr:
+        print_error("Error output on using TTK")
+        print_error(result.stderr)
+```
+
+**GLD1006 Special Workflow:**
+```python
+if test_id == "GLD1006":
+    # Calculate total CS runtime
+    cs_total_runtime = 0
+    cs_socwatch_runtime = 0
+    
+    # Extract JWORKLOAD parameters
+    jworkload_match = re.search(r"-JWORKLOAD\(([^)]+)\)", message, re.IGNORECASE)
+    if jworkload_match:
+        params = parse_parameters(jworkload_match.group(1))
+        repeat = int(params.get("Repeat", 1))
+        record = int(params.get("Record"))
+        wait = int(params.get("Wait"))
+        cs_total_runtime = ((record + wait) * repeat) + workload_initial_wait
+    
+    # Extract SOCWATCH parameters (if present)
+    socwatch_match = re.search(r"-SOCWATCH\(([^)]+)\)", message, re.IGNORECASE)
+    if socwatch_match:
+        params = parse_parameters(socwatch_match.group(1))
+        repeat = int(params.get("Repeat", 1))
+        record = int(params.get("Record"))
+        wait = int(params.get("Wait"))
+        cs_socwatch_runtime = ((record + wait) * repeat) + workload_initial_wait
+    
+    # Check for TTK availability
+    if os.path.exists(r"C:\SVshare\user_apps\ttk3\api\python\FrontPanel.py"):
+        print_Info("TTK found")
+        print_Info("Connected Modern Standby using TTK")
+        print_Info("Putting System into Sleep....")
+        mcs_ttk()  # Put system to sleep
+        ttk = True
+    else:
+        logging.error("TTK not found")
+        pre_check = "fail"
+        continue
 ```
 
 **Workflow for GLD1006:**
 ```
-1. Start PACS recording
-2. Wait 30 seconds (system stable)
-3. Trigger Modern Standby (via TTK)
-   └─ System enters low-power state
-4. Record power for X minutes
-5. Wake system (via TTK)
-6. Wait 30 seconds (system stable)
-7. Stop PACS recording
+1. Calculate expected CS duration
+2. Verify TTK hardware present
+3. Start PACS recording
+4. Put system into Modern Standby (mcs_ttk)
+   └─ System enters low-power state (S0ix)
+5. System sleeps for calculated duration
+6. PACS records power during entire sleep period
+7. Wake system from Modern Standby (mcs_ttk)
+8. Stop PACS recording
 ```
 
 **Network Validation:**
 ```python
-# Before sleep
-ping_result = subprocess.call(["ping", "-n", "1", DUT_IP])
-if ping_result != 0:
-    print_error("System not reachable before sleep")
+# Before test, verify system is reachable
+result = subprocess.run(
+    ["ping", "-n", "1", client_ip],
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.DEVNULL
+)
+if result.returncode == 0:
+    pre_check = "pass"  # System reachable
+else:
+    logging.error("System not put to sleep, Retriggering CS")
+    pre_check = "fail"  # System still awake
+```
 
-# After wake
-ping_result = subprocess.call(["ping", "-n", "1", DUT_IP])
-if ping_result != 0:
-    print_error("System not reachable after wake")
+**Wake Verification:**
+```python
+# After CS period, wake system
+if ttk:
+    print_Info("Waking System from sleep..")
+    mcs_ttk()  # Wake via TTK
+    ttk = False
 ```
 
 ## Result Management
@@ -848,177 +1306,180 @@ Visual countdown timer for wait periods:
 ```python
 def sleep_timer(seconds):
     """
-    Sleep with visual countdown
+    Sleep with visual countdown timer
     
     Args:
         seconds: Duration to sleep
     
     Displays:
-        Waiting: 120s remaining... (updates every second)
+        "Waiting for {N} seconds..." (updates in place every second)
+    
+    Implementation:
+        - Uses range(seconds, 0, -1) for countdown
+        - print() with end="\r" to overwrite line
+        - time.sleep(1) for 1-second intervals
     """
-    for i in range(seconds, 0, -1):
-        print(f"\rWaiting: {i}s remaining...", end='', flush=True)
+    print_Info(f"Wait for {seconds}s")
+    for timer in range(seconds, 0, -1):
+        print(f"Waiting for {timer} seconds...", end="\r")  # '\r' overwrites line
         time.sleep(1)
-    print("\r" + " " * 50 + "\r", end='')  # Clear line
 ```
 
-### 2. `psexec(cmd, ip, username, password)`
-Remote command execution wrapper:
+**Example Output:**
+```
+[INFO] Wait for 120s
+Waiting for 120 seconds...
+Waiting for 119 seconds...
+...
+Waiting for 1 seconds...
+[INFO] Wait complete
+```
+
+---
+
+### 2. `collect_report(KPIID)`
+Collect background services and system state reports:
 
 ```python
-def psexec(cmd, DUT_IP, DUT_username, DUT_pwd):
+def collect_report(KPIID):
     """
-    Execute command on remote system via PsExec
+    Collect system state reports from client
     
     Args:
-        cmd: Command to execute
-        DUT_IP: Target system IP
-        DUT_username: Username
-        DUT_pwd: Password
+        KPIID: Test ID (e.g., "GLD1015")
     
-    Returns:
-        Return code (0 = success)
+    Actions:
+        - Executes Report.bat on client via psexec
+        - Runs in detached mode (-d flag)
+        - Logs are saved on client system
+    
+    Purpose:
+        - Document running services before test
+        - Capture system configuration
+        - Baseline for debugging anomalies
     """
-    psexec_cmd = [
-        "psexec.exe",
-        f"\\\\{DUT_IP}",
-        "-u", DUT_username,
-        "-p", DUT_pwd,
-        "-accepteula",
-        cmd
-    ]
-    
-    return subprocess.call(psexec_cmd, timeout=300)
+    cmd = rf'psexec \\{client_ip} -d -u "Administrator" -p "" ' \
+          rf'-w {KSR_path} cmd /c "Report.bat {KPIID}"'
+    print_Info("Collecting Background Services Reports.....")
+    psexec(cmd)
 ```
 
-### 3. `collect_report()`
-Background services reporting:
-
-```python
-def collect_report():
-    """
-    Collect system state reports
-    
-    Collects:
-        - Running services
-        - Active processes
-        - System resource usage
-    
-    Saves to: C:\Test\reports\system_state_{timestamp}.txt
-    """
-    psexec(
-        "powershell.exe Get-Service | Export-Csv C:\\Temp\\services.csv",
-        DUT_IP, username, password
-    )
-    
-    psexec(
-        "powershell.exe Get-Process | Export-Csv C:\\Temp\\processes.csv",
-        DUT_IP, username, password
-    )
+**Report.bat Output (on Client):**
+```
+C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD1015\
+├── GLD1015_services.csv       # Running Windows services
+├── GLD1015_processes.csv      # Active processes
+├── GLD1015_drivers.txt        # Loaded drivers
+└── GLD1015_system_info.txt    # System configuration
 ```
 
-### 4. `power_mode(mode)`
-Power slider control:
+---
+
+### 3. `power_mode(msg)`
+Log power mode events for correlation:
 
 ```python
-def power_mode(mode):
+def power_mode(msg):
     """
-    Set Windows power mode
+    Log power mode events on client system
     
     Args:
-        mode: "Best Performance" | "Balanced" | "Best Power Efficiency"
+        msg: Event message (e.g., "JWORKLOAD_Started", "SoCWatch_Ended")
     
-    Uses:
-        PowerSlider.exe tool or Windows Registry
+    Actions:
+        - Executes KSRPowerSlider.exe on client via psexec
+        - Logs event with timestamp
+        - Runs in detached mode (-d flag)
+    
+    Purpose:
+        - Mark specific events in result logs
+        - Correlate workload phases with power data
+        - Debugging and analysis
+    
+    Note:
+        - NOT executed for GLD1006 (Modern Standby)
+        - NOT executed for GLD1013
     """
-    mode_map = {
-        "Best Performance": 0,
-        "Balanced": 1,
-        "Best Power Efficiency": 2
-    }
-    
-    mode_value = mode_map.get(mode, 1)
-    
-    psexec(
-        f"C:\\Tools\\PowerSlider.exe {mode_value}",
-        DUT_IP, username, password
-    )
+    cmd = rf'psexec \\{client_ip} -d -u "Administrator" -p "" ' \
+          rf'-w {KSR_path} cmd /c "KSRPowerSlider.exe {SUT_result_path}\{test_id} {test_id} {msg}"'
+    psexec(cmd)
 ```
 
-### 5. `collect_debug_logs(workload, mode, iteration)`
-Debug data collection:
+**Usage Example:**
+```python
+# Before JWORKLOAD
+power_mode("JWORKLOAD_Started")
+
+# Run JWORKLOAD iterations
+
+# After JWORKLOAD
+power_mode("JWORKLOAD_Ended")
+```
+
+**Result File (on Client):**
+```
+C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results\GLD1015\GLD1015_events.log
+
+2025-01-22 10:30:00 - JWORKLOAD_Started
+2025-01-22 10:35:00 - JWORKLOAD_Ended
+2025-01-22 10:35:05 - SOCWATCH_Started
+2025-01-22 10:40:05 - SOCWATCH_Ended
+```
+
+---
+
+### 4. `print_Info(message)`
+Logging wrapper for informational messages:
 
 ```python
-def collect_debug_logs(workload_name, mode, iteration):
+def print_Info(message):
     """
-    Collect debug logs for workload
+    Log informational message
     
     Args:
-        workload_name: JWORKLOAD, SOCWATCH, etc.
-        mode: "START" or "STOP"
-        iteration: Current iteration number
+        message: Message to log
     
-    Collects:
-        - Workload-specific logs
-        - System event logs
-        - Performance counters
+    Actions:
+        - Logs via logging.info()
+        - Message includes timestamp, level, and content
+    
+    Format:
+        YYYY-MM-DD HH:MM:SS - INFO - <message>
     """
-    log_script = f"C:\\Tools\\Collect_Logs.ps1"
-    log_params = f"-Workload {workload_name} -Mode {mode} -Iteration {iteration}"
-    
-    psexec(
-        f"powershell.exe -File {log_script} {log_params}",
-        DUT_IP, username, password
-    )
+    logging.info(message)
 ```
 
-### 6. `mcs_ttk(duration_minutes)`
-Modern Standby control:
+---
+
+### 5. `print_error(message)`
+Logging wrapper for error messages:
 
 ```python
-def mcs_ttk(duration_minutes):
+def print_error(message):
     """
-    Control Modern Connected Standby via TTK
+    Log error message
     
     Args:
-        duration_minutes: Sleep duration
+        message: Error message to log
     
-    Process:
-        1. Validate connectivity
-        2. Press power button (sleep)
-        3. Wait specified duration
-        4. Press power button (wake)
-        5. Verify wake
+    Actions:
+        - Logs via logging.error()
+        - Message includes timestamp, level, and content
+    
+    Format:
+        YYYY-MM-DD HH:MM:SS - ERROR - <message>
     """
-    # Check connectivity
-    ping = subprocess.call(["ping", "-n", "1", DUT_IP])
-    if ping != 0:
-        print_error("DUT not reachable")
-        return
-    
-    # Sleep via TTK
-    subprocess.call([
-        "python", "KSR_CS_PowerButton.py",
-        DUT_IP, "press"
-    ])
-    
-    print_Info(f"System in Modern Standby for {duration_minutes} minutes")
-    sleep_timer(duration_minutes * 60)
-    
-    # Wake via TTK
-    subprocess.call([
-        "python", "KSR_CS_PowerButton.py",
-        DUT_IP, "press"
-    ])
-    
-    # Verify wake
-    time.sleep(30)
-    ping = subprocess.call(["ping", "-n", "1", DUT_IP])
-    if ping == 0:
-        print_Info("System woke successfully")
-    else:
-        print_error("System did not wake")
+    logging.error(message)
 ```
+
+---
+
+### 6. Result Processing Functions
+
+**Not Implemented in Server** - The following functions are mentioned in original docs but not present in actual server code:
+
+- ~~`collect_debug_logs(workload, mode, iteration)`~~ → Simplified to `collect_debug_logs(tool, action)`
+- ~~`power_mode(mode)`~~ → Changed to `power_mode(msg)` for event logging only
 
 ## Connection Model
 
