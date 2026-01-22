@@ -47,16 +47,16 @@ The framework implements a sequential execution model for clarity and control:
 
 ```
 ┌────────────────────────────────────────────────────────┐
-│ 1. START MONITORING (Separate Window)                  │
+│ 1. WAIT FOR STABILIZATION                              │
+│    - Default: 3 seconds                                │
+│    - Configurable via -WaitTime parameter              │
+├────────────────────────────────────────────────────────┤
+│ 2. START MONITORING (Separate Window)                  │
 │    - SoCWatch: Visible window                          │
 │    - EMON: Minimized window                            │
 │    - TypePerf: Hidden window                           │
 │    - PresentMon: Minimized window                      │
 │    - PowerMeter: Background process                    │
-├────────────────────────────────────────────────────────┤
-│ 2. WAIT FOR STABILIZATION                              │
-│    - Default: 3 seconds                                │
-│    - Configurable via -WaitTime parameter              │
 ├────────────────────────────────────────────────────────┤
 │ 3. RUN TEST IN MAIN WINDOW                             │
 │    - All output visible in console                     │
