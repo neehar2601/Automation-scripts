@@ -1,0 +1,52 @@
+1. Do not edit any code, Just give the plan how can I implement this:
+My issue is when I measure the power while the test are running, even if there is one extra service is running it'll add me extra power.
+So we need to orchestrate the test using external server connected through Lan.
+so when the message is received the device should run the test and how many iteration requested.
+Write the requirement first, then we will continue
+
+2. It generated a plan with Listener running continuously running in the background:
+Prompt: the listener on the DUT should be in such a way that it should terminate itself once the test begins and get back once the test is completed or as a post step of the test execution
+
+
+3. Understand the working of Existing nidaq_server:
+Help me understand the working of this code architecture and execution flow of the code
+I want to understand its architecture and working
+
+
+4. considering nidaq as the base and architecture as requirement, build a plan to develop a modular PowerShell approach to control the test running on DUT using run test and its config files
+
+5. I want to understamd how the code is built, excecution flow technologies used
+I want to understand it completely, as I'm new to the project. Analyse the client server architecture along with its flow, how they commincate and how the interaction works between the server and client
+
+6. I want to understamd how the code is built, excecution flow technologies used
+I want to understand it completely, as I'm new to the project. Analyse the client architecture along with its flow, how this commincate and interact with client
+Later we will do the same for client and cobine both, for now ananlyse the server
+
+7. We already analysed and understood server architecture and working
+Lets work on analysing and undrestanding the client architecture, how it works, is it running continuously, update the client architecture.md file same as server
+Later we will create one file combining both
+
+8. combine both to showcase the working of existing server client model
+
+
+9. Why do we need wrapper script in DUT, as the runtest already has pre step, monitoring tools execution test execution and post step we can add the restart in post step as default right? - # As the architecture had wrapper which felt unnecessary 
+
+
+10. still we have the wrapper in the architecture file, This is the architecture we discussed right
+
+listner recieves the signal
+it kills itself
+we will have differet files here to install and kill background tasks, lets keep it like that as we will add that later
+run test takes cahrge
+4.runs pre test
+5.waits
+monitors an test running
+7.wait and stop the monitors
+post step(run the listener)
+listner takes charge
+
+
+# this is to update the architecture diagram
+
+
+
