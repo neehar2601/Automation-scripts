@@ -1,0 +1,94 @@
+"\Processor(_Total)\% Interrupt Time"
+"\Processor(_Total)\% Privileged Time"
+"\Processor(_Total)\% Processor Time"
+"\Processor(_Total)\% User Time"
+"\Processor(_Total)\% DPC Time"
+"\Processor(*)\Interrupts/sec"
+"\Processor(_Total)\% C1 Time"
+"\Processor(_Total)\% C2 Time"
+"\Processor(_Total)\% C3 Time"
+"\Processor(_Total)\C1 Transitions/sec"
+"\Processor(_Total)\C2 Transitions/sec"
+"\Processor(_Total)\C3 Transitions/sec"
+"\Processor(*)\DPC Rate"
+"\Processor(*)\DPCs Queued/sec"
+"\Processor(*)\% Processor Time"
+"\Processor(*)\% C1 Time"
+"\Processor(*)\% C2 Time"
+"\Processor(*)\% C3 Time"
+"\Processor(*)\C1 Transitions/sec"
+"\Processor(*)\C2 Transitions/sec"
+"\Processor(*)\C3 Transitions/sec"
+"\Processor Information(_Total)\Processor Frequency"
+"\Processor Information(*,*)\Processor Frequency"
+"\Processor Information(_Total)\% of Maximum Frequency"
+"\Processor Information(*,*)\% of Maximum Frequency"
+"\Processor Information(*)\Actual Frequency"
+"\Processor Information(*)\% Privileged Utility"
+"\Processor Information(*)\% Processor Utility"
+"\Processor Information(*)\% Processor Performance"
+"\Processor Information(*)\Average Idle Time"
+"\GPU Engine(*)\Utilization Percentage"
+"\GPU Engine(*)\Running Time"
+"\Energy Meter(*)\Power"
+"\Energy Meter(*)\Energy"
+"\Energy Meter(*)\Time"
+"\Power Meter(*)\Power Budget"
+"\Power Meter(*)\Power"
+"\Synchronization(*)\IPI Send Routine Requests/sec"
+"\Synchronization(*)\IPI Send Broadcast Requests/sec"
+"\Cache\Copy Read Hits %"
+"\Cache\Copy Reads/sec"
+"\Memory\Available MBytes"
+"\Memory\Cache Faults/sec"
+"\Memory\Demand Zero Faults/sec"
+"\Memory\Page Faults/sec"
+"\Memory\Page Reads/sec"
+"\Memory\Page Writes/sec"
+"\Memory\Pages/sec"
+"\Memory\% Committed Bytes In Use"
+"\System\Alignment Fixups/sec"
+"\System\Context Switches/sec"
+"\System\File Read Operations/sec"
+"\System\File Write Operations/sec"
+"\System\Processor Queue Length"
+"\System\System Calls/sec"
+"\Process(*)\% Processor Time"
+"\Process(*)\Page Faults/sec"
+"\PhysicalDisk(_Total)\% Disk Read Time"
+"\PhysicalDisk(_Total)\% Disk Time"
+"\PhysicalDisk(_Total)\% Disk Write Time"
+"\PhysicalDisk(_Total)\Avg. Disk Queue Length"
+"\LogicalDisk(_Total)\% Disk Read Time"
+"\LogicalDisk(_Total)\% Disk Time"
+"\LogicalDisk(_Total)\% Disk Write Time"
+"\LogicalDisk(_Total)\Avg. Disk Queue Length"
+"\LogicalDisk(_Total)\Avg. Disk sec/Read"
+"\LogicalDisk(_Total)\Avg. Disk sec/Transfer"
+"\LogicalDisk(_Total)\Avg. Disk sec/Write"
+"\LogicalDisk(_Total)\Disk Reads/sec"
+"\LogicalDisk(_Total)\Disk Transfers/sec"
+"\LogicalDisk(_Total)\Disk Writes/sec"
+\Thermal Zone Information(*)\High Precision Temperature
+\Thermal Zone Information(*)\Throttle Reasons
+\Thermal Zone Information(*)\% Passive Limit
+\Thermal Zone Information(*)\Temperature 
+\EsifDeviceInformation(*)\_HOT
+\EsifDeviceInformation(*)\RAPL Power
+\EsifDeviceInformation(*)\_PSV
+\EsifDeviceInformation(*)\Temperature
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ 
