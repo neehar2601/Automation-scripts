@@ -1,8 +1,16 @@
 # ----------------------------------------------------------------------------------
 # Kings River Benchmark Test Runner - Base Class with Defaults
 # All test logic and default parameters in one place
-# Monitoring scripts are called directly from Monitors/ directory
+# Monitoring modules are loaded from Monitors/ directory
 # ----------------------------------------------------------------------------------
+
+# Load monitoring modules
+. "$PSScriptRoot\Monitors\SoCWatch.ps1"
+. "$PSScriptRoot\Monitors\PowerMeter.ps1"
+. "$PSScriptRoot\Monitors\TypePerf.ps1"
+. "$PSScriptRoot\Monitors\PresentMon.ps1"
+. "$PSScriptRoot\Monitors\WLC.ps1"
+. "$PSScriptRoot\Monitors\EMON.ps1"
 
 class BenchmarkTest {
     # Basic test properties
@@ -127,185 +135,28 @@ class BenchmarkTest {
             throw "TestCMD is required but not defined in config"
         }
 
-        # Wait after PreStep and before starting monitors/test
-        if ($this.WaitTime -gt 0) {
-            Write-Host "  [INFO] Waiting $($this.WaitTime) seconds after PreStep..." -ForegroundColor Yellow
-            Start-Sleep -Seconds $this.WaitTime
-        }
-
-        # Determine which monitoring to use
+        # Determine which monitoring to use and call appropriate module
         # Priority order: SoCWatch > PowerMeter > TypePerf > EMON > PresentMon > WLC > Normal
-        $monitoringTool = $null
-        $monitorMode = $null
-        
         if ($this.EnableSoCWatch) {
-            $monitoringTool = "SoCWatch"
+            Invoke-SoCWatchMonitoring -TestInstance $this
         }
         elseif ($this.EnablePowerMeter) {
-            $monitoringTool = "PowerMeter"
+            Invoke-PowerMeterMonitoring -TestInstance $this
         }
-        elseif ($this.EnableTypePerfTP) {
-            $monitoringTool = "TypePerf"
-            $monitorMode = "TP"
+        elseif ($this.EnableTypePerfTP -or $this.EnableTypePerfSC) {
+            Invoke-TypePerfMonitoring -TestInstance $this
         }
-        elseif ($this.EnableTypePerfSC) {
-            $monitoringTool = "TypePerf"
-            $monitorMode = "SC"
-        }
-        elseif ($this.EnableEMON_P_Core) {
-            $monitoringTool = "EMON"
-            $monitorMode = "P_Core"
-        }
-        elseif ($this.EnableEMON_E_Core) {
-            $monitoringTool = "EMON"
-            $monitorMode = "E_Core"
-        }
-        elseif ($this.EnableEMON_P_Core_Cache) {
-            $monitoringTool = "EMON"
-            $monitorMode = "P_Core_Cache"
-        }
-        elseif ($this.EnableEMON_E_Core_Cache) {
-            $monitoringTool = "EMON"
-            $monitorMode = "E_Core_Cache"
-        }
-        elseif ($this.EnableEMON_EDP) {
-            $monitoringTool = "EMON"
-            $monitorMode = "EDP"
+        elseif ($this.EnableEMON_P_Core -or $this.EnableEMON_E_Core -or $this.EnableEMON_P_Core_Cache -or $this.EnableEMON_E_Core_Cache -or $this.EnableEMON_EDP) {
+            Invoke-EMONMonitoring -TestInstance $this
         }
         elseif ($this.EnablePresentMon) {
-            $monitoringTool = "PresentMon"
+            Invoke-PresentMonMonitoring -TestInstance $this
         }
         elseif ($this.EnableWLC) {
-            $monitoringTool = "WLC"
-        }
-        
-        # Execute with or without monitoring
-        if ($monitoringTool) {
-            $this.RunWithMonitoring($monitoringTool, $monitorMode)
+            Invoke-WLCMonitoring -TestInstance $this
         }
         else {
             $this.RunNormal()
-        }
-    }
-
-    # Run with monitoring (unified workflow)
-    [void] RunWithMonitoring([string]$tool, [string]$mode) {
-        Write-Host "  [INFO] Running test with $tool monitoring" -ForegroundColor Cyan
-        if ($mode) {
-            Write-Host "  [INFO] Mode: $mode" -ForegroundColor Gray
-        }
-        
-        try {
-            # Step 1: Start monitoring
-            Write-Host "`n  [Monitor] Starting $tool..." -ForegroundColor Cyan
-            
-            $monitorScript = Join-Path $PSScriptRoot "Monitors"
-            
-            switch ($tool) {
-                "SoCWatch" {
-                    & "$monitorScript\start_socwatch.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "PowerMeter" {
-                    & "$monitorScript\start_power.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "TypePerf" {
-                    & "$monitorScript\start_typeperf.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode"
-                }
-                "EMON" {
-                    & "$monitorScript\start_emon.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode"
-                }
-                "WLC" {
-                    & "$monitorScript\start_wpr.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "PresentMon" {
-                    & "$monitorScript\start_presentmon.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-            }
-            
-            # Step 2: Run test(s) immediately after starting monitors
-            for ($i = 1; $i -le $this.Repeats; $i++) {
-                if ($this.Repeats -gt 1) {
-                    Write-Host "`n  --- Iteration $i of $($this.Repeats) ---" -ForegroundColor Cyan
-                }
-                
-                Write-Host "  [Test] Executing workload..." -ForegroundColor Yellow
-                
-                # Execute test command
-                if ($this.TestCMD -is [scriptblock]) {
-                    & $this.TestCMD
-                }
-                else {
-                    Invoke-Expression $this.TestCMD
-                }
-                
-                Write-Host "  [Test] Workload completed" -ForegroundColor Green
-            }
-            
-            # Step 3: Brief wait before stopping
-            Write-Host "  [Monitor] Waiting 2 seconds before stopping..." -ForegroundColor Gray
-            Start-Sleep -Seconds 2
-            
-            # Step 4: Stop monitoring
-            Write-Host "  [Monitor] Stopping $tool..." -ForegroundColor Yellow
-            
-            $monitorScript = Join-Path $PSScriptRoot "Monitors"
-            
-            switch ($tool) {
-                "SoCWatch" {
-                    & "$monitorScript\stop_socwatch.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "PowerMeter" {
-                    & "$monitorScript\stop_power.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "TypePerf" {
-                    & "$monitorScript\stop_typeperf.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode"
-                }
-                "EMON" {
-                    & "$monitorScript\stop_emon.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode"
-                }
-                "WLC" {
-                    & "$monitorScript\stop_wpr.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-                "PresentMon" {
-                    & "$monitorScript\stop_presentmon.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID
-                }
-            }
-            
-            Write-Host "  [Monitor] Monitoring completed successfully" -ForegroundColor Green
-        }
-        catch {
-            Write-Host "  [ERROR] Monitoring failed: $($_.Exception.Message)" -ForegroundColor Red
-            
-            # Try to stop monitoring on error
-            try {
-                $monitorScript = Join-Path $PSScriptRoot "Monitors"
-                
-                switch ($tool) {
-                    "SoCWatch" { 
-                        & "$monitorScript\stop_socwatch.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID 
-                    }
-                    "PowerMeter" { 
-                        & "$monitorScript\stop_power.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID 
-                    }
-                    "TypePerf" { 
-                        & "$monitorScript\stop_typeperf.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode" 
-                    }
-                    "EMON" { 
-                        & "$monitorScript\stop_emon.ps1" -LogDirectory $this.ResultPath -FileName "$($this.TestID)_$mode" 
-                    }
-                    "WLC" { 
-                        & "$monitorScript\stop_wpr.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID 
-                    }
-                    "PresentMon" { 
-                        & "$monitorScript\stop_presentmon.ps1" -LogDirectory $this.ResultPath -FileName $this.TestID 
-                    }
-                }
-            }
-            catch {
-                # Ignore cleanup errors
-            }
-            
-            throw
         }
     }
 
@@ -316,6 +167,12 @@ class BenchmarkTest {
         for ($i = 1; $i -le $this.Repeats; $i++) {
             if ($this.Repeats -gt 1) {
                 Write-Host "`n  --- Iteration $i of $($this.Repeats) ---" -ForegroundColor Cyan
+            }
+            
+            # Wait before first iteration only
+            if ($this.WaitTime -gt 0 -and $i -eq 1) {
+                Write-Host "  [INFO] Waiting $($this.WaitTime) seconds before starting test..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $this.WaitTime
             }
             
             Write-Host "  Executing: " -NoNewline -ForegroundColor White
