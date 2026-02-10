@@ -1,0 +1,102 @@
+================================================================================
+OORJA WEB PAGE MONITORING - QUICK START GUIDE
+================================================================================
+
+📦 COMPLETE DEPLOYMENT PACKAGE
+   All required files and documentation in one folder!
+
+--------------------------------------------------------------------------------
+STEP 1: INSTALL DEPENDENCIES (One-time setup)
+--------------------------------------------------------------------------------
+
+pip install -r requirements.txt
+python -m playwright install chromium
+
+--------------------------------------------------------------------------------
+STEP 2: SET EMAIL CREDENTIALS (One-time setup)
+--------------------------------------------------------------------------------
+
+PowerShell:
+  $env:MailUserName = "your.email@intel.com"
+  $env:MailPassword = "your_password"
+
+Make permanent:
+  [System.Environment]::SetEnvironmentVariable('MailUserName', 'your.email@intel.com', 'User')
+  [System.Environment]::SetEnvironmentVariable('MailPassword', 'your_password', 'User')
+
+--------------------------------------------------------------------------------
+STEP 3: RUN FIRST TIME (Creates baseline)
+--------------------------------------------------------------------------------
+
+python daily_monitor.py --email your.email@intel.com
+
+  Result: Creates baseline/ folder with downloaded content
+          No email sent (first run)
+
+--------------------------------------------------------------------------------
+STEP 4: RUN DAILY (Detects changes)
+--------------------------------------------------------------------------------
+
+python daily_monitor.py --email your.email@intel.com
+
+  Result: Compares with baseline, sends email if changes found
+          Updates baseline automatically
+
+--------------------------------------------------------------------------------
+📧 EMAIL BEHAVIOR
+--------------------------------------------------------------------------------
+
+✅ Email SENT when:
+   - Content changes detected (text additions, deletions, modifications)
+   - New pages added
+   - Pages deleted
+
+❌ Email NOT sent when:
+   - Only HTML structure changes (tracking scripts, buttons, CSS)
+   - No meaningful changes detected
+
+Email details:
+  From:    ksr_oorja_changes@intel.com
+  Subject: OOrja changes dd/mm/yyyy
+  Attach:  Detailed change report
+
+--------------------------------------------------------------------------------
+📁 FILES IN THIS PACKAGE
+--------------------------------------------------------------------------------
+
+Core Scripts:
+  ✓ daily_monitor.py          - Main automation script
+  ✓ sso_downloader.py          - Web scraper with SSO auth
+  ✓ send_email_intel.py        - Intel SMTP email sender
+  ✓ requirements.txt           - Python dependencies
+
+Documentation:
+  ✓ README.md                  - Complete setup guide
+  ✓ INSTALLATION.md            - Detailed installation steps
+  ✓ EMAIL_SETUP.md             - Email configuration guide
+  ✓ FILTERING_DOCUMENTATION.md - How filtering works
+  ✓ DOCUMENTATION_INDEX.md     - Documentation overview
+  ✓ QUICK_START.txt            - This file
+
+--------------------------------------------------------------------------------
+🆘 TROUBLESHOOTING
+--------------------------------------------------------------------------------
+
+Email not working?
+  python send_email_intel.py --to your.email@intel.com --subject "Test" --body "Test" --from ksr_oorja_changes@intel.com
+
+Download failing?
+  python -m playwright install chromium --force
+
+Permission denied?
+  Close file explorers, pause OneDrive
+  Remove-Item -Recurse -Force compare
+  Remove-Item -Recurse -Force baseline
+
+--------------------------------------------------------------------------------
+📚 MORE HELP
+--------------------------------------------------------------------------------
+
+Read README.md for complete documentation and automation setup.
+
+================================================================================
