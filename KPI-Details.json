@@ -1,0 +1,176 @@
+[{
+  "KPIId": "GLD1002",
+  "Title": "CQP- AC Power scenario with thunderbolt docking (KEI)"
+},
+{
+  "KPIId": "GLD1012",
+  "Title": "Speedometer 2.1 (chr v118)"
+},
+{
+  "KPIId": "GLD4002",
+  "Title": "Stable Diffusion 1.5 (NPU) (Sec.)"
+},
+{
+  "KPIId": "GLD1016",
+  "Title": "Cinebench R24 ST"
+},
+{
+  "KPIId": "GLD1014",
+  "Title": "3DMark Timespy"
+},
+{
+  "KPIId": "GLD5002",
+  "Title": "Teams 3x3 MEP Video Conferencing with MEP (Bblur, Auto SR, ECC)"
+},
+{
+  "KPIId": "GLD7004",
+  "Title": "SPECfp_ST (IC 23.2)"
+},
+{
+  "KPIId": "GLD1010",
+  "Title": "Geekbench ST 6.3"
+},
+{
+  "KPIId": "GLD1005",
+  "Title": "MM30"
+},
+{
+  "KPIId": "GLD4003",
+  "Title": "SD 1.5 (GPU) (fp8)"
+},
+{
+  "KPIId": "GLD2001",
+  "Title": "Procyon Office  Productivity"
+},
+{
+  "KPIId": "GLD1004",
+  "Title": "Browsing - Catapult V2 [4-tab]"
+},
+{
+  "KPIId": "GLD1006",
+  "Title": "Connected Modern Standby Power"
+},
+{
+  "KPIId": "GLD7001",
+  "Title": "SPECint_ST (IC 23.2)"
+},
+{
+  "KPIId": "GLD8004",
+  "Title": "AIDA64 Write GB/s"
+},
+{
+  "KPIId": "GLD1009",
+  "Title": "Geekbench MT 6.3"
+},
+{
+  "KPIId": "GLD1013",
+  "Title": "Idle Display ON (with PSR)"
+},
+{
+  "KPIId": "GLD2003",
+  "Title": "Procyon AI (CPU) ver 1201 FLOAT16"
+},
+{
+  "KPIId": "GLD5001",
+  "Title": "Teams 3x3 Video conf"
+},
+{
+  "KPIId": "GLD7003",
+  "Title": "SPECfp_MT (IC 23.2)"
+},
+{
+  "KPIId": "GLD2004",
+  "Title": "Procyon AI (GPU) ver 1201  INT 8"
+},
+{
+  "KPIId": "GLD2006",
+  "Title": "Procyon AI (GPU) ver 1201  FLOAT16"
+},
+{
+  "KPIId": "GLD3004",
+  "Title": "Phi3 mini (NPU) "
+},
+{
+  "KPIId": "GLD2002",
+  "Title": "Procyon AI (CPU) ver 1201 INT 8"
+},
+{
+  "KPIId": "GLD1001",
+  "Title": "Busy Idle Consumer"
+},
+{
+  "KPIId": "GLD2005",
+  "Title": "Procyon AI (NPU) ver 1201 INT 8"
+},
+{
+  "KPIId": "GLD6001",
+  "Title": "Netflix Video streaming – 1080p24"
+},
+{
+  "KPIId": "GLD6002",
+  "Title": "YouTube Video streaming – 4K30 AV1"
+},
+{
+  "KPIId": "GLD3003",
+  "Title": "Phi3 mini (GPU)"
+},
+{
+  "KPIId": "GLD1003",
+  "Title": "ADK  Browsing V2 (KEI)"
+},
+{
+  "KPIId": "GLD3001",
+  "Title": "LLama3 8B GPU"
+},
+{
+  "KPIId": "GLD1011",
+  "Title": "WebXPRT 4 (chr v118)"
+},
+{
+  "KPIId": "GLD3002",
+  "Title": "LLama3 8B NPU"
+},
+{
+  "KPIId": "GLD7002",
+  "Title": "SPECint_MT (IC 23.2)"
+},
+{
+  "KPIId": "GLD8005",
+  "Title": "AIDA64 Copy GB/s"
+},
+{
+  "KPIId": "GLD2007",
+  "Title": "Procyon AI (NPU) ver 1201 FLOAT16"
+},
+{
+  "KPIId": "GLD8003",
+  "Title": "AIDA64 Read GB/s"
+},
+{
+  "KPIId": "GLD1015",
+  "Title": "3DMark Wildlife extreme unlimited"
+},
+{
+  "KPIId": "GLD4001",
+  "Title": "Stable Diffusion 1.5 (GPU) (Sec.)"
+},
+{
+  "KPIId": "GLD5003-R",
+  "Title": "Real world teams (w/APO & MEP) --> Foundational workflow(KEI)"
+},
+{
+  "KPIId": "GLD1017",
+  "Title": "3DMark Solar bay"
+},
+{
+  "KPIId": "GLD8006",
+  "Title": "AIDA64 Latency ns"
+},
+{
+  "KPIId": "GLD1007",
+  "Title": "Procyon BL  (KEI)"
+},
+{
+  "KPIId": "GLD1008",
+  "Title": "Cinebench R24 MT "
+}]
