@@ -13,10 +13,20 @@ echo.
 :: Set the ETL folder path
 set "ETL_FOLDER=C:\KSR_Package\KSR\Test_Run_KR\Results\ETL"
 set "kingsZipFile=%~1"
+set "Setup=%~2"
+if /i "%Setup%"=="KSR" (
+    echo [OK] Setup selected: KSR
+) else if /i "%Setup%"=="PnP" (
+    echo [OK] Setup selected: PnP
+) else (
+    echo [!] WARNING: Unknown setup specified: %Setup%
+    echo [!] Please specify either KSR or PnP as the second argument.
+    goto:eof
+)
 
 :: Check if ETL folder exists
 if not exist "%ETL_FOLDER%" (
-    echo WARNING: ETL folder not found: %ETL_FOLDER%
+    echo [WARNING] ETL folder not found: %ETL_FOLDER%
     @REM echo Skipping ETL push process.
     :: Call ETL_parser.bat if ETL folder is missing
     if exist "%CD%\ETL_parser.bat" (
@@ -28,8 +38,8 @@ if not exist "%ETL_FOLDER%" (
     goto:eof
 )
 
-echo [✓] ETL folder found: %ETL_FOLDER%
-echo [✓] Using zip file: %kingsZipFile%
+echo [OK] ETL folder found: %ETL_FOLDER%
+echo [OK] Using zip file: %kingsZipFile%
 echo.
 
 :: Clean up previous ETL API response files
@@ -115,10 +125,10 @@ if defined SHARE_PATH (
             echo Please check credentials and network connectivity.
             goto:eof
         ) else (
-            echo [✓] Network path mounted successfully
+            echo [OK] Network path mounted successfully
         )
     ) else (
-        echo [✓] Network path is already accessible
+        echo [OK] Network path is already accessible
     )
     echo.
     
@@ -141,7 +151,7 @@ if defined SHARE_PATH (
             :: Create folder by copying an empty directory structure
             robocopy "!NETWORK_MOUNT!" "!DEST_PATH!" /CREATE /R:1 /W:1 >nul 2>&1
             if exist "!DEST_PATH!" (
-                echo [✓] Destination folder created successfully
+                echo [OK] Destination folder created successfully
             ) else (
                 echo.
                 echo ERROR: Failed to create destination folder
@@ -150,10 +160,10 @@ if defined SHARE_PATH (
                 goto:eof
             )
         ) else (
-            echo [✓] Destination folder created successfully
+            echo [OK] Destination folder created successfully
         )
     ) else (
-        echo [✓] Destination folder already exists
+        echo [OK] Destination folder already exists
     )
     echo.
     
@@ -176,7 +186,7 @@ if defined SHARE_PATH (
     if !ROBOCOPY_EXIT! lss 8 (
         echo.
         echo ========================================
-        echo [✓] SUCCESS: ETL files copied successfully!
+        echo [OK] SUCCESS: ETL files copied successfully!
         echo ========================================
         echo Location: !DEST_PATH!
         echo Robocopy Exit Code: !ROBOCOPY_EXIT!
@@ -184,7 +194,7 @@ if defined SHARE_PATH (
     ) else (
         echo.
         echo ========================================
-        echo ERROR: Failed to copy ETL files
+        echo [ERROR] Failed to copy ETL files
         echo ========================================
         echo Robocopy Exit Code: !ROBOCOPY_EXIT!
         echo Check network connectivity and permissions.
@@ -192,7 +202,7 @@ if defined SHARE_PATH (
     )
 ) else (
     echo.
-    echo ERROR: No share path found in API response
+    echo [ERROR] No share path found in API response
     echo Please check the API response in ETL_API_Response.txt
     echo.
 )

@@ -7,23 +7,30 @@ set "SEARCH_FOLDER=C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results"
 REM Set the output ETL folder path
 set "ETL_OUTPUT_FOLDER=C:\KSR_Package\KSR\Test_Run_KR\Results\ETL"
 
-REM Set the profile path
-REM Set the default profile path
-for /f "delims=" %%p in ('dir /s /b "C:\KSR_Package\KSR\Test_Run_KR\*.wpaProfile" 2^>nul') do (
-    set "PROFILE_PATH=%%p"
-    goto :found_profile_default
-)
-:found_profile_default
+REM Set the KPI details JSON file path
+set "KPI_JSON_FILE=%~dp0KPI-Details.json"
 
-REM If not found in default location, search for the wpaProfile file on the whole disk (first match)
-if not exist "%PROFILE_PATH%" (
-    set "PROFILE_PATH="
-    for /f "delims=" %%p in ('dir /s /b "%SystemDrive%\*.wpaProfile" 2^>nul') do (
-        set "PROFILE_PATH=%%p"
-        goto :found_profile
-    )
-    :found_profile
-)
+REM Set the PowerShell helper script path
+set "PS_HELPER=%~dp0Get-KPITitle.ps1"
+
+REM Set the profile path
+set "PROFILE_PATH=C:\Users\nnellika\OneDrive - Intel Corporation\Documents\ETL\ETL\wprfile.wpaProfile"
+REM Set the default profile path
+@REM for /f "delims=" %%p in ('dir /s /b "C:\KSR_Package\KSR\Test_Run_KR\*.wpaProfile" 2^>nul') do (
+@REM     set "PROFILE_PATH=%%p"
+@REM     goto :found_profile_default
+@REM )
+@REM :found_profile_default
+
+@REM REM If not found in default location, search for the wpaProfile file on the whole disk (first match)
+@REM if not exist "%PROFILE_PATH%" (
+@REM     set "PROFILE_PATH="
+@REM     for /f "delims=" %%p in ('dir /s /b "%SystemDrive%\*.wpaProfile" 2^>nul') do (
+@REM         set "PROFILE_PATH=%%p"
+@REM         goto :found_profile
+@REM     )
+@REM     :found_profile
+@REM )
 
 REM Check if search folder exists
 if not exist "%SEARCH_FOLDER%" (
@@ -37,6 +44,20 @@ if not exist "%PROFILE_PATH%" (
     echo Error: Profile file not found: %PROFILE_PATH%
     pause
     exit /b 1
+)
+
+REM Check if KPI JSON file exists
+if not exist "%KPI_JSON_FILE%" (
+    echo Warning: KPI-Details.json not found: %KPI_JSON_FILE%
+    echo Will use original ETL filenames without KPI titles.
+    set "KPI_JSON_FILE="
+)
+
+REM Check if PowerShell helper script exists
+if not exist "%PS_HELPER%" (
+    echo Warning: Get-KPITitle.ps1 not found: %PS_HELPER%
+    echo Will use original ETL filenames without KPI titles.
+    set "PS_HELPER="
 )
 
 REM Create the ETL output folder if it doesn't exist
@@ -59,20 +80,37 @@ for /r "%SEARCH_FOLDER%" %%f in (*_Tracelog.etl) do (
     if exist "%%f" (
         set /a FILE_COUNT+=1
         
-        REM Get the directory where the ETL file is located
-        set "ETL_DIR=%%~dpf"
+        REM Get the filename without path and extension
         set "ETL_NAME=%%~nf"
         
-        REM Extract the test case folder name (e.g., GLD-1001, GLD6001, GLD1015)
-        REM Get the parent folder name
-        for %%p in ("%%~dpf.") do set "TEST_CASE=%%~nxp"
+        REM Extract KPI ID from filename (e.g., GLD1003 from GLD1003_Tracelog.etl or GLD1003_busy_idle_Tracelog.etl)
+        set "FILENAME=!ETL_NAME!"
+        
+        REM Remove _Tracelog suffix if present
+        set "FILENAME=!FILENAME:_Tracelog=!"
+        
+        REM Extract just the KPI ID (GLD followed by digits)
+        for /f "tokens=1 delims=_" %%k in ("!FILENAME!") do set "KPI_ID=%%k"
+        
+        REM Get folder name from PowerShell helper script
+        REM The script handles both current JSON mode and future filename-based mode
+        set "FOLDER_NAME=!KPI_ID!"
+        
+        if defined KPI_JSON_FILE if defined PS_HELPER (
+            REM Call PowerShell to get the folder name
+            REM Pass both KPI ID and filename (for future enhancement)
+            for /f "delims=" %%t in ('powershell -ExecutionPolicy Bypass -File "%PS_HELPER%" -JsonFile "%KPI_JSON_FILE%" -KPIId "!KPI_ID!" -ETLFileName "!FILENAME!" 2^>nul') do (
+                set "FOLDER_NAME=%%t"
+            )
+        )
         
         echo [!FILE_COUNT!] Found: %%f
-        echo [!FILE_COUNT!] Test Case: !TEST_CASE!
+        echo [!FILE_COUNT!] KPI ID: !KPI_ID!
+        echo [!FILE_COUNT!] Folder Name: !FOLDER_NAME!
         echo [!FILE_COUNT!] Processing...
         
         REM Create test case folder in ETL output directory
-        set "OUTPUT_DIR=%ETL_OUTPUT_FOLDER%\!TEST_CASE!"
+        set "OUTPUT_DIR=%ETL_OUTPUT_FOLDER%\!FOLDER_NAME!"
         if not exist "!OUTPUT_DIR!" (
             mkdir "!OUTPUT_DIR!"
         )
@@ -115,3 +153,5 @@ if %FILE_COUNT% equ 0 (
     echo All processed files have been organized in: %ETL_OUTPUT_FOLDER%
     echo Each test case has its own folder containing the CSV files and original ETL file.
 )
+pause
+exit /b
