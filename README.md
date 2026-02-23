@@ -1,396 +1,327 @@
-# ETL Processing and Results Push Documentation
+# Screen Recorder
 
-## Overview
-This documentation covers the automated ETL (Event Trace Log) processing and results submission workflow for the Kings River System.
+A Python-based screen recording utility that supports both continuous and interval recording modes. Perfect for recording meetings, tutorials, monitoring activities, or any screen capture needs.
 
----
+## Features
 
-## Table of Contents
-1. [ETL Parser Script](#etl-parser-script)
-2. [Push Results Script](#push-results-script)
-3. [Folder Structure](#folder-structure)
-4. [API Endpoints](#api-endpoints)
-5. [Manual Commands](#manual-commands)
-6. [Troubleshooting](#troubleshooting)
+- **Two Recording Modes:**
+  - 🎥 **Continuous Mode**: Records until stopped, creating a single video file
+  - ⏱️ **Interval Mode**: Records segments at regular intervals
+    - **Single File Mode** (default): All segments saved in one file
+    - **Multiple Files Mode**: Each segment saved as separate file
+  
+- **Flexible Control:**
+  - Start, stop, and check status from command line
+  - Safe stop mechanism that ensures recordings are properly saved
+  - Process management with PID file tracking
+  
+- **Customizable Settings:**
+  - Adjustable FPS (frames per second)
+  - Custom filenames or auto-generated timestamps
+  - Configurable recording duration and intervals
+  
+- **Real-time Feedback:**
+  - Live status updates during recording
+  - Frame count and duration tracking
+  - File size information after recording
 
----
+## Requirements
 
-## ETL Parser Script
+- Python 3.6+
+- OpenCV (cv2)
+- mss (screen capture)
+- numpy
 
-### Script Name
-`Naming_batch.bat`
+## Installation
 
-### Purpose
-Converts Windows Performance Analyzer trace log files (`*_Tracelog.etl`) to CSV format using the Windows Performance Analyzer exporter tool, and organizes them into a structured ETL folder.
+1. Clone or download this repository
 
-### Configuration
-```batch
-set "SEARCH_FOLDER=C:\KSR_Package\KSR\Test_Run_KR\Results\Golden_Results"
-set "ETL_OUTPUT_FOLDER=C:\KSR_Package\KSR\Test_Run_KR\Results\ETL"
-set "PROFILE_PATH=C:\Users\nnellika\Downloads\wprfile.wpaProfile"
-```
-
-### Input Structure
-```
-Results/Golden_Results/
-    ├── GLD-1001/
-    │   └── *_Tracelog.etl
-    ├── GLD-1005/
-    │   └── *_Tracelog.etl
-    ├── GLD6001/
-    │   └── *_Tracelog.etl
-    ├── GLD6002/
-    │    └── *_Tracelog.etl
-    ├── GLD1015/
-    │   └── *_Tracelog.etl
-    └── GLD1016/
-        └── *_Tracelog.etl
-```
-
-### Output Structure
-```
-Results/ETL/
-├── GLD-1001/
-│   ├── *.csv (converted files)
-│   └── *_Tracelog.etl (original file)
-├── GLD-1005/
-│   ├── *.csv
-│   └── *_Tracelog.etl
-├── GLD6001/
-│   ├── *.csv
-│   └── *_Tracelog.etl
-└── GLD6002/
-    ├── *.csv
-    └── *_Tracelog.etl
-```
-
-### Process Flow
-1. **Validation**: Checks if search folder and WPA profile exist
-2. **Search**: Recursively finds all `*_Tracelog.etl` files
-3. **Create Folders**: Creates test case folders in ETL output directory
-4. **Convert**: Runs `wpaexporter` to convert ETL to CSV format
-5. **Move Files**: Moves original ETL file to output directory
-6. **Report**: Displays summary of processed files
-
-### Usage
-```cmd
-cd C:\KSR_Package\KSR\Test_Run_KR
-Naming_batch.bat
-```
-
-### Requirements
-- Windows Performance Analyzer (`wpaexporter`) must be installed
-- WPA profile file (`.wpaProfile`) must exist
-- Sufficient disk space for converted files
-
----
-
-## Push Results Script
-
-### Script Name
-`PushResult.cmd`
-
-### Purpose
-Comprehensive script that:
-1. Collects system information
-2. Generates EMon, SystemScope, and SystemInfo data
-3. Creates a zip file with results
-4. Pushes results to Kings River API
-5. Pushes ETL logs to share path
-
-### Configuration
-```batch
-set "ETL_FOLDER=%CD%\Results\ETL"
-set "ETL_API_ENDPOINT=https://ksr-dev.intel.com/parser/api/ETLLogPush/ProcessWTLLogs"
-```
-
-### Process Flow
-
-#### Phase 1: System Information Collection
-1. **Serial Number Collection**
-   - Retrieves baseboard serial number via WMIC
-   - Generates dummy serial if unavailable (format: `KSRSN[random]`)
-   - Saves to `Results\SerialNumber.txt`
-
-2. **EMon Installation & Data Generation** (if needed)
-   - Downloads SEP tools from JFrog
-   - Installs Intel SEP (System Event Profiler)
-   - Generates EMon version info
-
-3. **System Data Generation**
-   - SystemScope: Hardware/firmware information
-   - SystemInfo: Detailed system configuration
-
-#### Phase 2: Results Packaging & Upload
-4. **Workload Download**
-   - Downloads workload configuration from Kings River API
-   - Endpoint: `https://kingsriver.intel.com/api/KPI/GetWorkload`
-
-5. **Zip Creation**
-   - `KingsParser.exe` creates zip file
-   - Filename saved to `Kings_ZipFileName.txt`
-
-6. **Results Upload**
-   - Uploads zip to Kings River Parser API
-   - Endpoint: `https://kingsriver.intel.com/parser/api/Parser/ProcessData`
-   - Validates "Results Uploaded Successfully" response
-
-#### Phase 3: ETL Push (New Addition)
-7. **ETL Folder Check**
-   - Verifies `Results\ETL` folder exists
-   - Skips gracefully if not found
-
-8. **ETL Zip Upload**
-   - Sends same zip file to ETL API
-   - Endpoint: `https://ksr-dev.intel.com/parser/api/ETLLogPush/ProcessWTLLogs`
-   - Parameter: `ResultZip`
-
-9. **Share Path Extraction**
-   - Parses API response for share path
-   - Expected format: `file://gar.corp.intel.com/ec/proj/my/ccg/Board/kings_etl/...`
-   - Converts to UNC format: `\\gar.corp.intel.com\ec\proj\my\ccg\Board\kings_etl\...`
-
-10. **ETL Folder Copy**
-    - Copies entire ETL folder to share path
-    - Uses `robocopy` with retry logic
-    - Multi-threaded transfer for performance
-
-### Usage
-```cmd
-cd C:\KSR_Package\KSR\Test_Run_KR
-PushResult.cmd
-```
-
-### Dependencies
-- `curl` (for API calls)
-- `wmic` (for serial number)
-- `KingsParser.exe` (for zip creation)
-- `SystemScopeCmdLine.exe` (for system info)
-- `SpeedSysInfo.exe` (for system details)
-- `robocopy` (for ETL folder copy)
-- Network access to Kings River APIs
-- Access to share path (SMB/CIFS)
-
----
-
-## Folder Structure
-
-### Working Directory
-```
-C:\KSR_Package\KSR\Test_Run_KR\
-├── Results\
-│   ├── Golden_Results\        # Input: Raw test results
-│   │   ├── Active Power\
-│   │   ├── Low Power\
-│   │   └── Performance\
-│   ├── ETL\                   # Output: Processed ETL files
-│   │   ├── GLD-1001\
-│   │   ├── GLD-1005\
-│   │   └── ...
-│   ├── SerialNumber.txt
-│   ├── [SerialNumber]_SystemScope.json
-│   ├── [SerialNumber]_SystemInfo.json
-│   └── [SerialNumber]_EMonInfo.txt
-├── KingsResults_[UUID].zip    # Generated zip file
-├── Kings_ZipFileName.txt      # Zip filename reference
-├── KingsWorkload.json         # Downloaded workload
-├── ParserDetails.txt          # Results upload response
-├── ETL_API_Response.txt       # ETL API response
-└── ETL_SharePath.txt          # Extracted share path
-```
-
----
-
-## API Endpoints
-
-### 1. Workload Download
-- **URL**: `https://kingsriver.intel.com/api/KPI/GetWorkload`
-- **Method**: POST
-- **Headers**: `Content-Type: application/json`
-- **Response**: JSON with workload configuration
-
-### 2. Results Upload
-- **URL**: `https://kingsriver.intel.com/parser/api/Parser/ProcessData`
-- **Method**: POST
-- **Headers**: `Content-Type: multipart/form-data`
-- **Parameters**:
-  - `RunNumber`: Integer (default: 1)
-  - `ResultZip`: File (zip archive)
-- **Success Response**: Contains "Results Uploaded Successfully"
-
-### 3. ETL Upload
-- **URL**: `https://ksr-dev.intel.com/parser/api/ETLLogPush/ProcessWTLLogs`
-- **Method**: POST
-- **Headers**: `Content-Type: multipart/form-data`
-- **Parameters**:
-  - `ResultZip`: File (zip archive)
-- **Response**: Share path in format `file://server/path/...`
-
----
-
-## Manual Commands
-
-### ETL Conversion (Manual)
-```cmd
-cd [directory_with_etl_file]
-wpaexporter -i "file_Tracelog.etl" -profile "C:\path\to\wprfile.wpaProfile"
-```
-
-### Results Upload (Manual)
+2. Install required packages:
 ```bash
-curl.exe -X POST ^
-  -H "Content-Type: multipart/form-data" ^
-  -F "RunNumber=1" ^
-  -F "ResultZip=@KingsResults_[UUID].zip;type=application/x-zip-compressed" ^
-  https://kingsriver.intel.com/parser/api/Parser/ProcessData ^
-  -k > ParserDetails.txt
+pip install opencv-python mss numpy
 ```
 
-### ETL Upload (Manual)
+## Usage
+
+### Basic Commands
+
+#### Start Recording (Continuous Mode)
 ```bash
-curl.exe -X POST ^
-  -H "Content-Type: multipart/form-data" ^
-  -F "ResultZip=@KingsResults_[UUID].zip;type=application/x-zip-compressed" ^
-  https://ksr-dev.intel.com/parser/api/ETLLogPush/ProcessWTLLogs ^
-  -k > ETL_API_Response.txt
+# Auto-generated filename
+python screen_recorder.py start
+
+# Custom filename
+python screen_recorder.py start my_recording
+
+# Custom FPS
+python screen_recorder.py start presentation --fps 30
 ```
 
-### View API Response
-```cmd
-type ETL_API_Response.txt
+#### Start Recording (Interval Mode)
+```bash
+# Record 30 seconds every 5 minutes (270s wait) - Single file (default)
+python screen_recorder.py start work_session --mode interval --duration 30 --interval 300
+
+# Record 30 seconds every 5 minutes - Multiple files
+python screen_recorder.py start work_session --mode interval --duration 30 --interval 300 --save-mode multiple
+
+# Record 45 seconds every 2 minutes (75s wait) - Single file
+python screen_recorder.py start monitoring --mode interval --duration 45 --interval 120 --fps 15
 ```
 
-### Copy ETL Folder to Share (Manual)
-```cmd
-robocopy "C:\KSR_Package\KSR\Test_Run_KR\Results\ETL" ^
-  "\\gar.corp.intel.com\ec\proj\my\ccg\Board\kings_etl\File_Server\[path]" ^
-  /E /R:3 /W:5 /MT:8
+#### Stop Recording
+```bash
+python screen_recorder.py stop
 ```
 
----
+#### Check Status
+```bash
+python screen_recorder.py status
+```
+
+### Command Reference
+
+```
+python screen_recorder.py [command] [filename] [options]
+
+Commands:
+  start     Start the screen recorder (default)
+  stop      Stop the running recorder
+  status    Check if recorder is running
+
+Arguments:
+  filename  Base filename for recording (optional, auto-generated if not provided)
+
+Options:
+  -m, --mode {continuous,interval}
+            Recording mode (default: continuous)
+  
+  -d, --duration SECONDS
+            Duration of each recording segment in seconds (interval mode only)
+            (default: 30)
+  
+  -i, --interval SECONDS
+            TOTAL time from start of one recording to start of next (interval mode only)
+            Interval = recording time + wait time (default: 60)
+  
+  -s, --save-mode {single,multiple}
+            For interval mode: 'single' saves all segments in one file,
+            'multiple' creates separate files per segment (default: single)
+  
+  -f, --fps FPS
+            Frames per second for recording (default: 20)
+  
+  -h, --help
+            Show help message and exit
+```
+
+## Recording Modes
+
+### Continuous Mode (Default)
+
+Records continuously until you send a stop signal, creating a **single video file**.
+
+**Use cases:**
+- Recording entire meetings or presentations
+- Capturing long tutorials
+- General screen recording sessions
+
+**Example:**
+```bash
+python screen_recorder.py start meeting_recording
+```
+
+Output: `recordings/meeting_recording_20260220_143025.mp4`
+
+### Interval Mode
+
+Records segments at regular intervals with configurable wait times between recordings.
+
+**Two Save Modes:**
+
+#### Single File Mode (Default)
+All segments are saved to **one video file**.
+
+**Use cases:**
+- Monitoring activity throughout the day in one file
+- Creating time-lapse videos with gaps
+- Keeping all recordings organized in single file
+
+**Example:**
+```bash
+python screen_recorder.py start daily_work --mode interval --duration 30 --interval 300
+```
+
+This records 30 seconds, waits 270 seconds (300 - 30 = 270), then repeats.
+
+Output: `recordings/daily_work_20260220_143000.mp4` (one file with all segments)
+
+#### Multiple Files Mode
+Each segment is saved as a **separate video file**.
+
+**Use cases:**
+- Need to access individual recording segments
+- Want to delete/keep specific segments
+- Processing segments separately
+
+**Example:**
+```bash
+python screen_recorder.py start daily_work --mode interval --duration 30 --interval 300 --save-mode multiple
+```
+
+Output:
+```
+recordings/daily_work_seg001_20260220_143000.mp4
+recordings/daily_work_seg002_20260220_143500.mp4
+recordings/daily_work_seg003_20260220_144000.mp4
+...
+```
+
+**Understanding Interval:**
+- `--interval` is the TOTAL cycle time (recording + waiting)
+- Wait time = interval - duration
+- Example: `--duration 30 --interval 300` = Record 30s, wait 270s, repeat
+
+## Output
+
+All recordings are saved in the `recordings/` directory (automatically created if it doesn't exist).
+
+### File Naming
+
+**Continuous Mode:**
+- Format: `{filename}_{timestamp}.mp4`
+- Example: `meeting_recording_20260220_143025.mp4`
+
+**Interval Mode (Single File):**
+- Format: `{filename}_{timestamp}.mp4`
+- Example: `daily_work_20260220_143025.mp4`
+
+**Interval Mode (Multiple Files):**
+- Format: `{filename}_seg{number}_{timestamp}.mp4`
+- Example: `work_session_seg001_20260220_143000.mp4`
+
+### Recording Information
+
+After stopping, you'll see:
+- Total duration (HH:MM:SS format)
+- Total frames recorded
+- File size
+- Full path to saved file(s)
+
+## Examples
+
+### Example 1: Quick Recording
+```bash
+# Start recording with default settings
+python screen_recorder.py start
+
+# In another terminal, stop when done
+python screen_recorder.py stop
+```
+
+### Example 2: High-Quality Meeting Recording
+```bash
+# Record at 30 FPS for better quality
+python screen_recorder.py start client_meeting --fps 30
+
+# Stop from another terminal when meeting ends
+python screen_recorder.py stop
+```
+
+### Example 3: Work Day Monitoring (Single File)
+```bash
+# Record 1 minute every 10 minutes - all in one file
+python screen_recorder.py start workday_monitor --mode interval --duration 60 --interval 600 --fps 15
+
+# Stop at end of day
+python screen_recorder.py stop
+```
+
+### Example 4: Hourly Captures (Multiple Files)
+```bash
+# Record 2 minutes every hour - separate files for each segment
+python screen_recorder.py start hourly_capture --mode interval --duration 120 --interval 3600 --save-mode multiple
+
+# Stop when done
+python screen_recorder.py stop
+```
+
+### Example 5: Check If Recording is Active
+```bash
+python screen_recorder.py status
+```
+
+Output:
+```
+✅ Recorder is RUNNING (PID: 12345)
+```
+or
+```
+❌ Recorder is NOT running
+```
+
+## Tips
+
+1. **FPS Settings:**
+   - 15-20 FPS: Good for general recording, smaller file sizes
+   - 25-30 FPS: Smoother video, better for presentations
+   - Higher FPS = larger file sizes
+
+2. **Interval Mode:**
+   - `--interval` is the TOTAL cycle time (record + wait)
+   - Wait time is automatically calculated: `interval - duration`
+   - Example: `--duration 30 --interval 300` means record 30s, wait 270s
+   - If `duration` > `interval`, recordings will start immediately after previous one finishes
+   - **Single file mode** (default): All segments in one file, easier to manage
+   - **Multiple files mode**: Separate files per segment, useful for selective processing
+
+3. **Background Recording:**
+   - The recorder runs in the current terminal
+   - Use a separate terminal to send stop commands
+   - Or use Ctrl+C to stop (but using `stop` command is cleaner)
+
+4. **File Sizes:**
+   - Approximate: 20 FPS @ 1920x1080 ≈ 10-15 MB per minute
+   - Varies based on screen content and compression
+   - Interval mode (single file): Only recorded segments count toward file size, not wait time
 
 ## Troubleshooting
 
-### ETL Parser Issues
+### "Recorder is already running" Error
+Run the stop command first:
+```bash
+python screen_recorder.py stop
+```
 
-#### Issue: "No ETL files found"
-**Solution**: 
-- Verify `SEARCH_FOLDER` path is correct
-- Check that files end with `_Tracelog.etl`
-- Ensure files exist in subdirectories
+### Stale PID File
+If the status command shows a stale PID file, it will automatically clean it up. Then try starting again.
 
-#### Issue: "Profile not found"
-**Solution**:
-- Download/locate `.wpaProfile` file
-- Update `PROFILE_PATH` in script
-- Ensure full path with no spaces (or use quotes)
+### Import Errors
+Make sure all dependencies are installed:
+```bash
+pip install opencv-python mss numpy
+```
 
-#### Issue: "wpaexporter not recognized"
-**Solution**:
-- Install Windows Performance Toolkit
-- Add WPT to system PATH
-- Or use full path to `wpaexporter.exe`
+### Screen Not Captured
+- Ensure you have permissions to capture the screen
+- On some systems, you may need to grant screen recording permissions in system settings
 
-### Push Results Issues
+## Technical Details
 
-#### Issue: "Invalid serial number"
-**Solution**:
-- Script auto-generates dummy serial: `KSRSN[random]`
-- This is expected behavior for systems without proper serial
+- **Video Codec:** MP4V (H.264 compatible)
+- **Color Format:** BGR (OpenCV standard)
+- **Screen Capture:** MSS library (fast, cross-platform)
+- **Process Management:** PID file-based control
+- **Output Format:** MP4 container
 
-#### Issue: "SystemScope.json does not exist"
-**Solution**:
-- Install Intel System Scope Tool
-- Verify path: `C:\Program Files\Intel Corporation\Intel(R) System Scope Tool\`
-- Run SystemScope manually to test
+## License
 
-#### Issue: "Unable To Download Workload"
-**Solution**:
-- Check network connectivity to `kingsriver.intel.com`
-- Verify VPN connection if required
-- Check firewall settings
+This project is provided as-is for personal and educational use.
 
-#### Issue: "Unable To Send File"
-**Solution**:
-- Verify `Kings_ZipFileName.txt` exists
-- Check zip file exists
-- Verify API endpoint is accessible
-- Check network/proxy settings
+## Contributing
 
-#### Issue: "ETL API returns empty response"
-**Solution**:
-- Verify API endpoint URL is correct
-- Check parameter name (`ResultZip` vs `ETLZip`)
-- Test API with curl manually
-- Contact API team for endpoint status
-
-#### Issue: "Share path is not accessible"
-**Solution**:
-- Verify network connection to share server
-- Check SMB/CIFS permissions
-- Test UNC path in File Explorer: `\\gar.corp.intel.com\...`
-- Verify user has write permissions
-- Check if share requires authentication
-
-#### Issue: PowerShell curl alias conflict
-**Solution**:
-- Use `curl.exe` instead of `curl` in PowerShell
-- Or run from CMD instead of PowerShell
-
-### Robocopy Error Codes
-- **0-7**: Success (0=no files, 1=files copied, 2=extra files, etc.)
-- **8+**: Errors (8=some failures, 16=serious error)
+Feel free to submit issues, feature requests, or improvements!
 
 ---
 
-## Color-Coded Messages
-
-### Script Output Legend
-- **[102m** (Green): Success messages
-- **[101m** (Red): Error messages
-- **[0m**: Reset to default color
-
----
-
-## Version History
-
-| Version | Date       | Changes                                      |
-|---------|------------|----------------------------------------------|
-| V1.0    | 02-13-2026 | Initial ETL parser with folder organization  |
-| V1.1    | 02-13-2026 | Added ETL push to PushResult script          |
-
----
-
-## Contact & Support
-
-For issues or questions:
-- **Script Owner**: Saravanan Rajagopal
-- **Modified By**: GitHub Copilot
-- **Kings River System**: https://kingsriver.intel.com
-
----
-
-## Notes
-
-1. **enabledelayedexpansion**: Required in PushResult.cmd for variable expansion in loops
-2. **Firewall**: Script disables firewall (`netsh advfirewall set allprofile state off`)
-3. **Background Process**: Script uses `-k` flag with curl to ignore SSL certificate errors
-4. **Zip File Format**: Must use `application/x-zip-compressed` content type
-5. **Share Path Format**: Converts `file://` to `\\` (UNC path) automatically
-6. **Test Case Names**: Extracted from parent folder name (GLD-XXXX, GLDXXXX, etc.)
-
----
-
-## Best Practices
-
-1. Always run scripts from the correct working directory
-2. Verify all dependencies are installed before running
-3. Check disk space before processing large ETL files
-4. Save backup of results before pushing
-5. Verify API responses for errors
-6. Test share path accessibility before copying large folders
-7. Keep `.wpaProfile` file up to date for accurate conversions
-
----
-
-*Last Updated: February 13, 2026*
+**Note:** Screen recording may be subject to privacy laws and regulations. Always ensure you have permission to record screen content, especially in professional or public settings.
