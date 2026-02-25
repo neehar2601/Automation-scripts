@@ -282,7 +282,7 @@ def filter_meaningful_changes(diff_lines):
     return changes, meaningful_count
 
 def generate_report(changed_files, new_files, deleted_files):
-    """Generate a detailed change report with filtered meaningful changes
+    """Generate a clean, well-formatted change report that's easy to read
     
     Returns: (report_content, meaningful_change_count)
     """
@@ -308,53 +308,116 @@ def generate_report(changed_files, new_files, deleted_files):
     # Calculate total meaningful changes
     meaningful_change_count = len(meaningful_changes) + len(new_files) + len(deleted_files)
     
-    report_lines.append("="*80)
-    report_lines.append("WEB PAGE CHANGE DETECTION REPORT")
-    report_lines.append("="*80)
-    report_lines.append(f"\nReport Generated: {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+    # Header with better spacing
+    report_lines.append("="*100)
+    report_lines.append("WEB PAGE CHANGE DETECTION REPORT".center(100))
+    report_lines.append("="*100)
+    report_lines.append("")
+    report_lines.append(f"Report Generated: {timestamp.strftime('%B %d, %Y at %I:%M %p')}")
     report_lines.append(f"Source URL: {START_URL}")
-    report_lines.append(f"\n{'='*80}")
-    report_lines.append("SUMMARY")
-    report_lines.append("="*80)
-    report_lines.append(f"\n  Files with Meaningful Changes: {len(meaningful_changes)}")
-    report_lines.append(f"  Files with Only Structure Changes: {len(skipped_files)} (ignored)")
-    report_lines.append(f"  New Files:     {len(new_files)}")
-    report_lines.append(f"  Deleted Files: {len(deleted_files)}")
-    report_lines.append(f"  Total Meaningful Changes: {meaningful_change_count}")
+    report_lines.append("")
     
-    # Changed files (only meaningful ones)
+    # Summary Section with emoji
+    report_lines.append("="*100)
+    report_lines.append("SUMMARY".center(100))
+    report_lines.append("="*100)
+    report_lines.append("")
+    report_lines.append(f"  📊 Files with Meaningful Changes: {len(meaningful_changes)}")
+    report_lines.append(f"  🔇 Files with Only Structure Changes: {len(skipped_files)} (ignored)")
+    report_lines.append(f"  ➕ New Files:     {len(new_files)}")
+    report_lines.append(f"  ➖ Deleted Files: {len(deleted_files)}")
+    report_lines.append(f"  📈 Total Meaningful Changes: {meaningful_change_count}")
+    report_lines.append("")
+    
+    # If no changes, make it clear
+    if meaningful_change_count == 0:
+        report_lines.append("✅ All content is identical to the baseline.")
+        report_lines.append("   Only HTML structure or UI element changes were detected and filtered out.")
+        report_lines.append("")
+        report_lines.append("="*100)
+        report_lines.append("END OF REPORT".center(100))
+        report_lines.append("="*100)
+        return '\n'.join(report_lines), meaningful_change_count
+    
+    # Content Changes Section with better formatting
     if meaningful_changes:
-        report_lines.append(f"\n\n{'='*80}")
-        report_lines.append("CONTENT CHANGES")
-        report_lines.append("="*80)
+        report_lines.append("="*100)
+        report_lines.append("CONTENT CHANGES".center(100))
+        report_lines.append("="*100)
         report_lines.append("")
         
         for rel_path, info in sorted(meaningful_changes.items()):
-            report_lines.append(f"\n{rel_path}:")
+            # File heading with bold separator
+            report_lines.append("")
+            report_lines.append("─"*100)
+            report_lines.append(f"📄 FILE: {rel_path}")
+            report_lines.append("─"*100)
+            report_lines.append("")
+            
+            # Process each change with better formatting
             for change in info['simple_changes']:
-                report_lines.append(change)
+                change = change.strip()
+                
+                if not change:
+                    continue
+                
+                # Format different types of changes
+                if change.startswith('Removed:'):
+                    # Removed content
+                    content = change.replace('Removed:', '').strip().strip('"')
+                    report_lines.append(f"  🔴 REMOVED:")
+                    report_lines.append(f"     {content}")
+                    report_lines.append("")
+                    
+                elif change.startswith('Added:'):
+                    # Added content
+                    content = change.replace('Added:', '').strip().strip('"')
+                    report_lines.append(f"  🟢 ADDED:")
+                    report_lines.append(f"     {content}")
+                    report_lines.append("")
+                    
+                elif ' was changed to ' in change:
+                    # Changed content - split into OLD/NEW
+                    parts = change.split(' was changed to ')
+                    if len(parts) == 2:
+                        old_value = parts[0].strip().strip('"')
+                        new_value = parts[1].strip().strip('"')
+                        report_lines.append(f"  🔄 CHANGED:")
+                        report_lines.append(f"     OLD: {old_value}")
+                        report_lines.append(f"     NEW: {new_value}")
+                        report_lines.append("")
+                else:
+                    # Generic change
+                    report_lines.append(f"  • {change}")
+                    report_lines.append("")
     
-    # New files
+    # New files section
     if new_files:
-        report_lines.append(f"\n\n{'='*80}")
-        report_lines.append("NEW FILES")
-        report_lines.append("="*80)
+        report_lines.append("")
+        report_lines.append("="*100)
+        report_lines.append("NEW FILES".center(100))
+        report_lines.append("="*100)
         report_lines.append("")
         for rel_path in sorted(new_files.keys()):
-            report_lines.append(f"  + {rel_path}")
+            report_lines.append(f"  ➕ {rel_path}")
+        report_lines.append("")
     
-    # Deleted files
+    # Deleted files section
     if deleted_files:
-        report_lines.append(f"\n\n{'='*80}")
-        report_lines.append("DELETED FILES")
-        report_lines.append("="*80)
+        report_lines.append("")
+        report_lines.append("="*100)
+        report_lines.append("DELETED FILES".center(100))
+        report_lines.append("="*100)
         report_lines.append("")
         for rel_path in sorted(deleted_files.keys()):
-            report_lines.append(f"  - {rel_path}")
+            report_lines.append(f"  ➖ {rel_path}")
+        report_lines.append("")
     
-    report_lines.append(f"\n\n{'='*80}")
-    report_lines.append("END OF REPORT")
-    report_lines.append("="*80)
+    # Footer
+    report_lines.append("")
+    report_lines.append("="*100)
+    report_lines.append("END OF REPORT".center(100))
+    report_lines.append("="*100)
     
     return '\n'.join(report_lines), meaningful_change_count
 
