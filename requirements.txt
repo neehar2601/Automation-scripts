@@ -1,0 +1,10 @@
+# Screen Recorder Dependencies
+
+# Computer Vision and Image Processing
+opencv-python>=4.5.0
+
+# Screen Capture
+mss>=6.1.0
+
+# Numerical Operations
+numpy>=1.19.0

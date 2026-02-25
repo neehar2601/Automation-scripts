@@ -1,0 +1,6 @@
+{
+  "mode": "continuous",
+  "fps": 20,
+  "save_mode": "single",
+  "output_dir": "recordings"
+}

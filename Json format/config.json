@@ -1,0 +1,8 @@
+{
+  "mode": "interval",
+   "duration": 30,
+   "interval": 300,
+  "fps": 20,
+  "save_mode": "single",
+  "output_dir": "recordings"
+}
