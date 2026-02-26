@@ -6,10 +6,11 @@ from datetime import datetime
 import argparse
 import os
 import sys
+import subprocess
 
 class ScreenRecorder:
     def __init__(self, base_filename, mode='continuous', record_duration=30, interval=60, 
-                 fps=20, save_mode='single'):
+                 fps=20, save_mode='single', launch_camera=False):
         """
         Initialize the screen recorder.
         
@@ -20,6 +21,7 @@ class ScreenRecorder:
             interval: Time between recording starts in seconds (for interval mode)
             fps: Frames per second for recording
             save_mode: 'single' (one file) or 'multiple' (separate files per segment)
+            launch_camera: Whether to launch system camera app before recording
         """
         self.base_filename = base_filename
         self.mode = mode
@@ -27,6 +29,7 @@ class ScreenRecorder:
         self.interval = interval
         self.fps = fps
         self.save_mode = save_mode
+        self.launch_camera = launch_camera
         self.is_running = False
         self.sct = mss()
         self.out = None
@@ -35,6 +38,7 @@ class ScreenRecorder:
         self.total_frames = 0
         self.start_time = None
         self.segment_count = 0
+        self.camera_process = None
         
         # Control files
         self.pid_file = ".screen_recorder.pid"
@@ -57,6 +61,89 @@ class ScreenRecorder:
             print(f"Wait Time Between Recordings: {self.interval - self.record_duration} seconds")
             print(f"Save Mode: {'SINGLE FILE' if self.save_mode == 'single' else 'MULTIPLE FILES'}")
         print(f"FPS: {self.fps}")
+        if self.launch_camera:
+            print(f"Camera App: Will launch before recording")
+    
+    def launch_camera_app(self):
+        """Launch the Windows Camera app and maximize it (with taskbar visible)."""
+        try:
+            print("\n[INFO] Launching Windows Camera app...")
+            
+            # Launch the Windows Camera app using the URI scheme
+            # This works on Windows 10/11
+            subprocess.Popen(
+                ['start', 'microsoft.windows.camera:'],
+                shell=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            
+            print("[INFO] Camera app launched")
+            print("[INFO] Waiting for camera window to open...")
+            
+            # Wait for camera app to open
+            time.sleep(3)
+            
+            # Try to maximize the camera window using PowerShell with correct window state
+            try:
+                # PowerShell script that properly maximizes the window
+                ps_script = '''
+                Add-Type @"
+                    using System;
+                    using System.Runtime.InteropServices;
+                    public class WinAPI {
+                        [DllImport("user32.dll")]
+                        public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+                        [DllImport("user32.dll")]
+                        public static extern bool SetForegroundWindow(IntPtr hWnd);
+                        public const int SW_MAXIMIZE = 3;
+                    }
+"@ -PassThru | Out-Null
+
+                $camera = Get-Process | Where-Object { $_.MainWindowTitle -match "Camera" } | Select-Object -First 1
+                if ($camera -and $camera.MainWindowHandle -ne 0) {
+                    [void][WinAPI]::SetForegroundWindow($camera.MainWindowHandle)
+                    Start-Sleep -Milliseconds 200
+                    [void][WinAPI]::ShowWindow($camera.MainWindowHandle, 3)
+                    Write-Host "SUCCESS"
+                } else {
+                    Write-Host "NOTFOUND"
+                }
+                '''
+                
+                result = subprocess.run(
+                    ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', ps_script],
+                    capture_output=True,
+                    timeout=8,
+                    text=True
+                )
+                
+                if "SUCCESS" in result.stdout:
+                    print("[INFO] Camera window maximized (taskbar visible)")
+                elif "NOTFOUND" in result.stdout:
+                    print("[INFO] Camera window not found yet, please manually maximize")
+                else:
+                    print("[INFO] Please manually maximize the camera window")
+                
+            except subprocess.TimeoutExpired:
+                print("[INFO] Auto-maximize timed out, please manually maximize the camera window")
+            except Exception as e:
+                print(f"[INFO] Auto-maximize failed: {str(e)[:50]}")
+                print("[INFO] Please manually maximize the camera window")
+            
+            print("[INFO] Recording will start in 2 seconds...")
+            print("[INFO] Click the maximize button (□) on camera window if needed...")
+            
+            # Wait for user to adjust if needed
+            time.sleep(2)
+            
+            print("[INFO] Starting recording now...")
+            return True
+            
+        except Exception as e:
+            print(f"[WARNING] Failed to launch camera app: {e}")
+            print("[WARNING] Continuing with screen recording only...")
+            return False
     
     def format_duration(self, seconds):
         """Format duration in seconds to HH:MM:SS format."""
@@ -340,6 +427,10 @@ class ScreenRecorder:
         if os.path.exists(self.stop_file):
             os.remove(self.stop_file)
         
+        # Launch camera app if requested
+        if self.launch_camera:
+            self.launch_camera_app()
+        
         self.is_running = True
         print(f"\n{'='*60}")
         print(f"Screen Recorder Started")
@@ -447,14 +538,17 @@ Examples:
   # Continuous recording
   python screen_recorder.py start meeting_recording
   
+  # Continuous recording with camera app
+  python screen_recorder.py start meeting_recording --camera
+  
   # Interval: 30sec every 5min (270s wait) - Multiple files
   python screen_recorder.py start work --mode interval --duration 30 --interval 300 --save-mode multiple
   
   # Interval: 30sec every 5min (270s wait) - Single file
   python screen_recorder.py start work --mode interval --duration 30 --interval 300 --save-mode single
   
-  # Interval: 45sec every 2min - Single file
-  python screen_recorder.py start monitoring --mode interval --duration 45 --interval 120
+  # Interval with camera app
+  python screen_recorder.py start work --mode interval --duration 45 --interval 120 --camera
   
   # Stop from another terminal
   python screen_recorder.py stop
@@ -499,6 +593,10 @@ Examples:
                        type=int,
                        default=20,
                        help='Frames per second (default: 20)')
+    
+    parser.add_argument('-c', '--camera',
+                       action='store_true',
+                       help='Launch system camera app in full screen before recording')
     
     args = parser.parse_args()
     
@@ -548,7 +646,8 @@ Examples:
             record_duration=args.duration,
             interval=args.interval,
             fps=args.fps,
-            save_mode=args.save_mode
+            save_mode=args.save_mode,
+            launch_camera=args.camera
         )
         
         recorder.start()
